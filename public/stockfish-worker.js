@@ -1,7 +1,6 @@
 // Stockfish Web Worker — uses CDN-hosted stockfish.js (asm.js, no WASM)
 
 // Intercept postMessage BEFORE loading stockfish.js
-// so we can catch its raw UCI string output
 var _realPostMessage = self.postMessage.bind(self);
 self.postMessage = function(msg) {
   if (typeof msg === 'string') {
@@ -17,16 +16,22 @@ self.postMessage = function(msg) {
   }
 };
 
-// Now load stockfish.js — it will set self.onmessage for UCI
+// Load stockfish.js — it sets self.onmessage for raw UCI strings
 importScripts('https://cdnjs.cloudflare.com/ajax/libs/stockfish.js/10.0.2/stockfish.js');
 
-// Save stockfish.js's onmessage handler
+// Save stockfish.js's handler
 var _stockfishHandler = self.onmessage;
 
-// Replace with our handler that routes commands to stockfish.js
+// Route our commands to stockfish.js
 self.onmessage = function(e) {
   var data = e.data;
   if (data.type === 'command' && _stockfishHandler) {
     _stockfishHandler({ data: data.payload });
   }
 };
+
+// Send 'uci' to initialize — stockfish.js will reply with 'uciok'
+// which our postMessage intercept converts to { type: 'ready' }
+if (_stockfishHandler) {
+  _stockfishHandler({ data: 'uci' });
+}
