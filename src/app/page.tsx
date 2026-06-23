@@ -5,7 +5,8 @@ import ChessBoard from '@/components/ChessBoard';
 import MoveList from '@/components/MoveList';
 import EvalGraph from '@/components/EvalGraph';
 import AnalysisProgress from '@/components/AnalysisProgress';
-import { parsePgnToPositions, analyzeGame } from '@/engine/analyzer';
+import LichessLogin from '@/components/LichessLogin';
+import { parsePgnToPositions, analyzeGame, hasLichessToken } from '@/engine/analyzer';
 import { saveGame, getAllGames, deleteGame } from '@/lib/db';
 import { AnalyzedGame, PositionEval } from '@/types';
 
@@ -70,7 +71,7 @@ export default function Home() {
         parsed.sanMoves,
         parsed.moves,
         worker,
-        20,
+        12,
         {
           onProgress: (current, total, move) => {
             setProgress({ current, total, status: 'analyzing', currentMove: move });
@@ -109,6 +110,10 @@ export default function Home() {
   return (
     <main className="max-w-7xl mx-auto p-6">
       <h1 className="text-3xl font-bold mb-6">Chess Analysis</h1>
+
+      <div className="mb-6">
+        <LichessLogin onTokenChange={() => {}} />
+      </div>
 
       {!pgn && <PgnUpload onPgnSubmit={handlePgnSubmit} />}
 

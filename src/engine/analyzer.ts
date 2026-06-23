@@ -102,10 +102,32 @@ export interface AnalysisCallbacks {
   onError: (error: string) => void;
 }
 
+function getLichessToken(): string | null {
+  if (typeof window === 'undefined') return null;
+  return localStorage.getItem('lichess_token');
+}
+
+export function setLichessToken(token: string): void {
+  localStorage.setItem('lichess_token', token);
+}
+
+export function clearLichessToken(): void {
+  localStorage.removeItem('lichess_token');
+}
+
+export function hasLichessToken(): boolean {
+  return !!getLichessToken();
+}
+
 async function fetchLichessEval(fen: string): Promise<PositionEval | null> {
   try {
+    const token = getLichessToken();
+    const headers: Record<string, string> = {};
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+
     const res = await fetch(
-      `https://lichess.org/api/cloud-eval?fen=${encodeURIComponent(fen)}&multiPv=1`
+      `https://lichess.org/api/cloud-eval?fen=${encodeURIComponent(fen)}&multiPv=1`,
+      { headers }
     );
     if (!res.ok) return null;
     const data = await res.json();
@@ -198,6 +220,9 @@ export async function analyzeGame(
   callbacks: AnalysisCallbacks
 ): Promise<void> {
   const evals: PositionEval[] = new Array(positions.length);
+  const hasToken = hasLichessToken();
+  // Authenticated: 10 req/sec, Anonymous: 1 req/sec
+  const rateLimitMs = hasToken ? 100 : 1000;
 
   // Detect terminal positions
   const terminal = new Set<number>();
@@ -214,11 +239,10 @@ export async function analyzeGame(
   let completed = 0;
   const total = positions.length;
 
-  // Phase 1: Try Lichess cloud for ALL positions (batch, fast for known positions)
+  // Phase 1: Lichess cloud eval (rate limited)
   const lichessResults = new Map<number, PositionEval>();
   const needsLocal: number[] = [];
 
-  // Fetch Lichess evals with rate limiting (1/sec for anonymous)
   for (let i = 0; i < positions.length; i++) {
     if (terminal.has(i)) continue;
     callbacks.onProgress(completed, total, i === 0 ? 'Starting position' : sanMoves[i - 1]);
@@ -231,12 +255,16 @@ export async function analyzeGame(
     } else {
       needsLocal.push(i);
     }
+
+    // Rate limit
+    if (i < positions.length - 1) {
+      await new Promise(r => setTimeout(r, rateLimitMs));
+    }
   }
 
-  // Phase 2: Analyze remaining positions with local Stockfish (parallel)
+  // Phase 2: Local Stockfish for unknown positions
   if (needsLocal.length > 0) {
     let localIdx = 0;
-
     const processLocal = async (workerIdx: number) => {
       while (localIdx < needsLocal.length) {
         const i = needsLocal[localIdx++];
@@ -252,14 +280,11 @@ export async function analyzeGame(
         callbacks.onPositionEval(i, evals[i]);
       }
     };
-
     await Promise.all(workers.map((_, idx) => processLocal(idx)));
   }
 
-  // Merge Lichess results
-  lichessResults.forEach((result, i) => {
-    evals[i] = result;
-  });
+  // Merge results
+  lichessResults.forEach((result, i) => { evals[i] = result; });
 
   // Fill terminal positions
   terminal.forEach((i) => {
