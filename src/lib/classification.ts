@@ -11,10 +11,10 @@ export function classifyMove(
   const ea = isBlackMove ? -evalAfter : evalAfter;
   const evalLoss = eb - ea;
 
-  if (evalLoss <= 10) return 'best';
-  if (evalLoss <= 30) return 'excellent';
-  if (evalLoss <= 50) return 'good';
-  if (evalLoss <= 100) return 'inaccuracy';
-  if (evalLoss <= 200) return 'mistake';
+  if (evalLoss <= 30) return 'best';
+  if (evalLoss <= 100) return 'excellent';
+  if (evalLoss <= 200) return 'good';
+  if (evalLoss <= 400) return 'inaccuracy';
+  if (evalLoss <= 800) return 'mistake';
   return 'blunder';
 }

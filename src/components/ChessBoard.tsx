@@ -17,7 +17,7 @@ export default function ChessBoard({ pgn, currentMoveIndex }: ChessBoardProps) {
 
     const history = chess.history();
     const replay = new Chess();
-    for (let i = 0; i < currentMoveIndex && i < history.length; i++) {
+    for (let i = 0; i <= currentMoveIndex && i < history.length; i++) {
       replay.move(history[i]);
     }
     setFen(replay.fen());
