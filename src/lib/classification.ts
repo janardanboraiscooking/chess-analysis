@@ -7,8 +7,15 @@ function winningChances(cp: number): number {
 export function classifyMove(
   evalBefore: number,
   evalAfter: number,
-  isBlackMove: boolean
+  isBlackMove: boolean,
+  playerMove?: string,
+  bestMove?: string
 ): MoveClassification {
+  // If player played the engine's best move, it's best
+  if (playerMove && bestMove && playerMove === bestMove) {
+    return 'best';
+  }
+
   const povBefore = isBlackMove ? -evalBefore : evalBefore;
   const povAfter = isBlackMove ? -evalAfter : evalAfter;
 
@@ -16,7 +23,6 @@ export function classifyMove(
   const winAfter = winningChances(povAfter);
   const delta = winBefore - winAfter;
 
-  // Thresholds tuned for depth 12
   if (delta >= 25) return 'blunder';
   if (delta >= 15) return 'mistake';
   if (delta >= 8) return 'inaccuracy';
