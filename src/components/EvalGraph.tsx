@@ -16,12 +16,15 @@ export default function EvalGraph({ evals, currentMoveIndex, onMoveClick }: Eval
     labels: evals.map((_, i) => i.toString()),
     datasets: [{
       data: evals.map(e => e.eval / 100),
-      borderColor: '#6b7280',
-      backgroundColor: 'rgba(59, 130, 246, 0.1)',
+      borderColor: '#6366f1',
+      backgroundColor: 'rgba(99, 102, 241, 0.08)',
       fill: true,
-      tension: 0.3,
-      pointRadius: evals.map((_, i) => i === currentMoveIndex ? 6 : 2),
-      pointBackgroundColor: evals.map((_, i) => i === currentMoveIndex ? '#3b82f6' : '#6b7280'),
+      tension: 0.4,
+      borderWidth: 2,
+      pointRadius: evals.map((_, i) => i === currentMoveIndex ? 5 : 0),
+      pointBackgroundColor: '#6366f1',
+      pointBorderColor: '#fff',
+      pointBorderWidth: 2,
     }],
   };
 
@@ -34,19 +37,35 @@ export default function EvalGraph({ evals, currentMoveIndex, onMoveClick }: Eval
     scales: {
       x: { display: false },
       y: {
-        grid: { color: 'rgba(255,255,255,0.1)' },
-        ticks: { color: '#9ca3af', callback: (v: any) => `${v}p` },
+        grid: { color: 'rgba(255,255,255,0.05)', drawBorder: false },
+        ticks: {
+          color: '#64748b',
+          font: { family: 'JetBrains Mono', size: 11 },
+          callback: (v: any) => `${v > 0 ? '+' : ''}${v.toFixed(1)}`,
+        },
+        border: { display: false },
       },
     },
     plugins: {
       legend: { display: false },
-      tooltip: { callbacks: { label: (ctx: any) => `Eval: ${ctx.parsed.y.toFixed(2)}` } },
+      tooltip: {
+        backgroundColor: '#1a1a25',
+        borderColor: '#334155',
+        borderWidth: 1,
+        titleFont: { family: 'JetBrains Mono', size: 12 },
+        bodyFont: { family: 'JetBrains Mono', size: 12 },
+        padding: 10,
+        cornerRadius: 8,
+        callbacks: {
+          label: (ctx: any) => `Eval: ${ctx.parsed.y > 0 ? '+' : ''}${ctx.parsed.y.toFixed(2)}`,
+        },
+      },
     },
   };
 
   return (
-    <div className="bg-gray-900 rounded-lg p-4">
-      <h3 className="text-sm font-medium text-gray-400 mb-2">Evaluation</h3>
+    <div>
+      <h3 className="text-sm font-semibold mb-2" style={{ color: 'var(--text-secondary)' }}>Evaluation</h3>
       <div className="h-32">
         <Line data={data} options={options} />
       </div>

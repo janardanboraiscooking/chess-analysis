@@ -25,28 +25,40 @@ export default function PgnUpload({ onPgnSubmit }: PgnUploadProps) {
   }, [onPgnSubmit]);
 
   return (
-    <div className="w-full">
+    <div className="max-w-2xl mx-auto">
       <div
         onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
         onDragLeave={() => setIsDragging(false)}
         onDrop={handleDrop}
-        className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
-          isDragging ? 'border-blue-500 bg-blue-500/10' : 'border-gray-700 hover:border-gray-500'
-        }`}
+        className={`upload-area p-8 text-center ${isDragging ? 'dragging' : ''}`}
       >
-        <p className="text-gray-400 mb-4">
-          Drag and drop a .pgn file here, or paste PGN below
-        </p>
+        <div className="mb-6">
+          <div className="w-16 h-16 mx-auto rounded-2xl flex items-center justify-center mb-4" style={{ background: 'var(--accent-glow)' }}>
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" style={{ color: 'var(--accent-light)' }}>
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+              <polyline points="17 8 12 3 7 8"/>
+              <line x1="12" y1="3" x2="12" y2="15"/>
+            </svg>
+          </div>
+          <p className="text-lg font-medium mb-1" style={{ color: 'var(--text-primary)' }}>
+            Drop your PGN file here
+          </p>
+          <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
+            or paste the PGN below
+          </p>
+        </div>
+
         <textarea
           value={pgnText}
           onChange={(e) => setPgnText(e.target.value)}
           placeholder={'[Event "Casual Game"]\n[White "Player 1"]\n[Black "Player 2"]\n[Result "*"]\n\n1. e4 e5 2. Nf3 Nc6 3. Bb5 a6 *'}
-          className="w-full h-32 bg-gray-900 border border-gray-700 rounded p-3 text-sm font-mono text-gray-300 resize-none focus:outline-none focus:border-blue-500"
+          className="input-field h-40 font-mono text-sm resize-none mb-4"
         />
+
         <button
           onClick={() => pgnText.trim() && onPgnSubmit(pgnText)}
           disabled={!pgnText.trim()}
-          className="mt-4 px-6 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-700 disabled:cursor-not-allowed rounded font-medium transition-colors"
+          className="btn-primary w-full text-base"
         >
           Analyze Game
         </button>

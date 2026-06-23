@@ -7,16 +7,16 @@ interface MoveListProps {
   onMoveClick: (index: number) => void;
 }
 
-const colors: Record<MoveClassification, string> = {
-  best: 'bg-green-600/30 text-green-300',
-  excellent: 'bg-green-500/20 text-green-400',
-  good: 'bg-gray-700/50 text-gray-300',
-  inaccuracy: 'bg-yellow-500/20 text-yellow-400',
-  mistake: 'bg-orange-500/20 text-orange-400',
-  blunder: 'bg-red-600/20 text-red-400',
+const badgeClass: Record<MoveClassification, string> = {
+  best: 'badge-best',
+  excellent: 'badge-excellent',
+  good: 'badge-good',
+  inaccuracy: 'badge-inaccuracy',
+  mistake: 'badge-mistake',
+  blunder: 'badge-blunder',
 };
 
-const symbols: Record<MoveClassification, string> = {
+const symbol: Record<MoveClassification, string> = {
   best: '!!',
   excellent: '!',
   good: '',
@@ -27,30 +27,38 @@ const symbols: Record<MoveClassification, string> = {
 
 export default function MoveList({ moves, currentMoveIndex, onMoveClick }: MoveListProps) {
   return (
-    <div className="bg-gray-900 rounded-lg p-4 max-h-[500px] overflow-y-auto">
-      <h3 className="text-sm font-medium text-gray-400 mb-3">Moves</h3>
-      <div className="space-y-1">
+    <div>
+      <h3 className="text-sm font-semibold mb-3" style={{ color: 'var(--text-secondary)' }}>Moves</h3>
+      <div className="space-y-0.5">
         {moves.map((move, idx) => (
-          <div key={idx} className="flex items-center gap-2 text-sm">
-            <span className="text-gray-500 w-8 text-right">{move.moveNumber}.</span>
+          <div key={idx} className="flex items-center gap-1 text-sm py-0.5">
+            <span className="w-8 text-right font-mono text-xs" style={{ color: 'var(--text-muted)' }}>
+              {move.moveNumber}.
+            </span>
             {move.white && (
               <button
                 onClick={() => onMoveClick(idx * 2)}
-                className={`px-2 py-0.5 rounded font-mono ${
-                  currentMoveIndex === idx * 2 ? 'ring-2 ring-blue-500' : ''
-                } ${colors[move.white.classification]}`}
+                className={`move-btn ${currentMoveIndex === idx * 2 ? 'active' : ''}`}
               >
-                {move.white.san}{symbols[move.white.classification]}
+                {move.white.san}
+                {symbol[move.white.classification] && (
+                  <span className={`ml-1 ${badgeClass[move.white.classification]}`}>
+                    {symbol[move.white.classification]}
+                  </span>
+                )}
               </button>
             )}
             {move.black && (
               <button
                 onClick={() => onMoveClick(idx * 2 + 1)}
-                className={`px-2 py-0.5 rounded font-mono ${
-                  currentMoveIndex === idx * 2 + 1 ? 'ring-2 ring-blue-500' : ''
-                } ${colors[move.black.classification]}`}
+                className={`move-btn ${currentMoveIndex === idx * 2 + 1 ? 'active' : ''}`}
               >
-                {move.black.san}{symbols[move.black.classification]}
+                {move.black.san}
+                {symbol[move.black.classification] && (
+                  <span className={`ml-1 ${badgeClass[move.black.classification]}`}>
+                    {symbol[move.black.classification]}
+                  </span>
+                )}
               </button>
             )}
           </div>
