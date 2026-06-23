@@ -9,16 +9,12 @@ export interface PgnParseResult {
   result: string;
   whiteName: string;
   blackName: string;
-  event?: string;
-  date?: string;
 }
 
 export function parsePgnToPositions(pgn: string): PgnParseResult {
   const whiteMatch = pgn.match(/\[White\s+"([^"]*)"\]/);
   const blackMatch = pgn.match(/\[Black\s+"([^"]*)"\]/);
   const resultMatch = pgn.match(/\[Result\s+"([^"]*)"\]/);
-  const eventMatch = pgn.match(/\[Event\s+"([^"]*)"\]/);
-  const dateMatch = pgn.match(/\[Date\s+"([^"]*)"\]/);
 
   const chess = new Chess();
   try {
@@ -53,8 +49,6 @@ export function parsePgnToPositions(pgn: string): PgnParseResult {
     result: resultMatch?.[1] || '*',
     whiteName: whiteMatch?.[1] || 'White',
     blackName: blackMatch?.[1] || 'Black',
-    event: eventMatch?.[1],
-    date: dateMatch?.[1],
   };
 }
 
@@ -71,8 +65,6 @@ export function buildAnalysisResult(
 
     const evalBefore = evals[i]?.eval ?? 0;
     const evalAfter = evals[i + 1]?.eval ?? 0;
-    const playerUci = uciMoves[i] ?? '';
-    const bestMove = evals[i]?.bestMove ?? '';
     const classification = classifyMove(evalBefore, evalAfter, isBlack);
 
     const eb = isBlack ? -evalBefore : evalBefore;
@@ -117,6 +109,7 @@ function analyzePositionWorker(
     const timeout = setTimeout(() => reject(new Error('Timeout')), 15000);
     let lastEval = 0;
     let lastPV: string[] = [];
+    let lastBestMove = '';
 
     const handler = (e: MessageEvent) => {
       if (e.data.type === 'info') {
@@ -134,7 +127,20 @@ function analyzePositionWorker(
       if (e.data.type === 'bestmove') {
         clearTimeout(timeout);
         worker.removeEventListener('message', handler);
-        resolve({ fen, eval: lastEval, bestMove: e.data.payload.split(' ')[1], pv: lastPV, depth });
+        lastBestMove = e.data.payload.split(' ')[1] || '';
+
+        // Stockfish returns eval from side-to-move perspective.
+        // Convert to always be from white's perspective.
+        const turn = fen.split(' ')[1]; // 'w' or 'b'
+        const whitePerspectiveEval = turn === 'w' ? lastEval : -lastEval;
+
+        resolve({
+          fen,
+          eval: whitePerspectiveEval,
+          bestMove: lastBestMove,
+          pv: lastPV,
+          depth
+        });
       }
     };
 
@@ -145,7 +151,7 @@ function analyzePositionWorker(
 }
 
 const NUM_WORKERS = 8;
-const DISPLAY_DELAY_MS = 310; // 310ms between each display update
+const DISPLAY_DELAY_MS = 310;
 
 function createWorkerPool(): Worker[] {
   const workers: Worker[] = [];
@@ -157,14 +163,10 @@ function createWorkerPool(): Worker[] {
 }
 
 async function initWorkers(workers: Worker[]): Promise<void> {
-  // Stagger initialization to avoid overwhelming CDN
   for (let i = 0; i < workers.length; i++) {
     workers[i].postMessage({ type: 'init' });
-    if (i < workers.length - 1) {
-      await new Promise(r => setTimeout(r, 50));
-    }
+    if (i < workers.length - 1) await new Promise(r => setTimeout(r, 50));
   }
-  // Wait for all to be ready
   await Promise.all(workers.map(w => waitForReady(w, 10000)));
 }
 
@@ -204,48 +206,37 @@ export async function analyzeGame(
   let completed = 0;
   const total = positions.length;
 
-  // Collect all results first (workers run in parallel)
-  const results: { index: number; eval: PositionEval }[] = [];
+  const indices = Array.from({ length: positions.length }, (_, i) => i);
   let nextIndex = 0;
 
   const processNext = async (workerIdx: number) => {
-    while (nextIndex < positions.length) {
-      const i = nextIndex++;
+    while (nextIndex < indices.length) {
+      const i = indices[nextIndex++];
 
       if (terminal.has(i)) {
         const fallback = evals[Math.max(0, i - 1)] ?? { fen: positions[i], eval: 0, bestMove: '', pv: [], depth };
-        const result = { ...fallback, fen: positions[i] };
-        results.push({ index: i, eval: result });
+        evals[i] = { ...fallback, fen: positions[i] };
+        completed++;
+        callbacks.onProgress(completed, total, i === 0 ? 'Starting position' : sanMoves[i - 1]);
+        callbacks.onPositionEval(i, evals[i]);
         continue;
       }
 
       try {
-        const result = await analyzePositionWorker(workers[workerIdx], positions[i], depth);
-        results.push({ index: i, eval: result });
+        evals[i] = await analyzePositionWorker(workers[workerIdx], positions[i], depth);
       } catch {
         const fallback = evals[Math.max(0, i - 1)] ?? { fen: positions[i], eval: 0, bestMove: '', pv: [], depth };
-        results.push({ index: i, eval: { ...fallback, fen: positions[i] } });
+        evals[i] = { ...fallback, fen: positions[i] };
       }
+
+      completed++;
+      callbacks.onProgress(completed, total, i === 0 ? 'Starting position' : sanMoves[i - 1]);
+      callbacks.onPositionEval(i, evals[i]);
     }
   };
 
-  // Run all workers in parallel
   await Promise.all(workers.map((_, idx) => processNext(idx)));
   workers.forEach(w => w.terminate());
-
-  // Sort results by position index
-  results.sort((a, b) => a.index - b.index);
-
-  // Display results one by one with delay for smooth progress
-  for (const result of results) {
-    evals[result.index] = result.eval;
-    completed++;
-    callbacks.onProgress(completed, total, result.index === 0 ? 'Starting position' : sanMoves[result.index - 1]);
-    callbacks.onPositionEval(result.index, result.eval);
-    if (completed < total) {
-      await new Promise(r => setTimeout(r, DISPLAY_DELAY_MS));
-    }
-  }
 
   try {
     const analyzedMoves = buildAnalysisResult(evals, sanMoves, uciMoves);
