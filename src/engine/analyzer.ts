@@ -106,7 +106,7 @@ function analyzePosition(
   depth: number
 ): Promise<PositionEval> {
   return new Promise((resolve, reject) => {
-    const timeout = setTimeout(() => reject(new Error('Timeout')), 30000);
+    const timeout = setTimeout(() => reject(new Error('Timeout')), 60000);
     let lastEval = 0;
     let lastPV: string[] = [];
 

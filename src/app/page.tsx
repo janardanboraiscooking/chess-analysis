@@ -59,7 +59,7 @@ export default function Home() {
       parsed.positions,
       parsed.sanMoves,
       worker,
-      16,
+      12,
       {
         onProgress: (current, total, move) => {
           setProgress({ current, total, status: 'analyzing', currentMove: move });
