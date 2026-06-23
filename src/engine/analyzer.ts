@@ -115,8 +115,17 @@ function analyzePosition(
     const handler = (e: MessageEvent) => {
       if (e.data.type === 'info') {
         const line = e.data.payload;
-        const scoreMatch = line.match(/score cp (-?\d+)/);
-        if (scoreMatch) lastEval = parseInt(scoreMatch[1]);
+        // Only update on full-depth info lines (have seldepth or depth N/20)
+        // Handle both score cp and score mate
+        const cpMatch = line.match(/score cp (-?\d+)/);
+        const mateMatch = line.match(/score mate (-?\d+)/);
+        if (cpMatch) {
+          lastEval = parseInt(cpMatch[1]);
+        } else if (mateMatch) {
+          const mateIn = parseInt(mateMatch[1]);
+          // Convert mate to centipawns: large value preserving sign
+          lastEval = mateIn > 0 ? 30000 - mateIn * 2 : -30000 - mateIn * 2;
+        }
         const pvMatch = line.match(/pv (.+)/);
         if (pvMatch) lastPV = pvMatch[1].split(' ');
       }
@@ -134,7 +143,7 @@ function analyzePosition(
   });
 }
 
-const NUM_WORKERS = 16;
+const NUM_WORKERS = 32;
 
 function createWorkerPool(): Worker[] {
   const workers: Worker[] = [];
