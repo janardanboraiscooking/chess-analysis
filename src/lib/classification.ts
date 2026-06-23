@@ -1,9 +1,17 @@
 import { MoveClassification } from '@/types';
 
 /**
- * Classify a move.
- * If the player played the engine's best move → "best" (regardless of eval swing).
- * Otherwise, classify by eval loss with thresholds tuned for depth 10.
+ * Convert centipawns to winning chance (0-100%).
+ * Lichess's exact sigmoid formula from WinPercent.scala.
+ */
+function winningChances(cp: number): number {
+  return 50 + 50 * (2 / (1 + Math.exp(-0.00368208 * cp)) - 1);
+}
+
+/**
+ * Classify a move using Lichess's exact algorithm.
+ * Compares win% before vs after the move.
+ * Thresholds: Inaccuracy=10%, Mistake=20%, Blunder=30% win chance drop.
  */
 export function classifyMove(
   evalBefore: number,
@@ -17,17 +25,19 @@ export function classifyMove(
     return 'best';
   }
 
-  // eval is always from white's perspective
-  // For black: negate both so evalLoss = how much that side lost
-  const eb = isBlackMove ? -evalBefore : evalBefore;
-  const ea = isBlackMove ? -evalAfter : evalAfter;
-  const evalLoss = eb - ea;
+  // eval is from white's perspective
+  // For black's move: invert so delta = how much black lost
+  const povEvalBefore = isBlackMove ? -evalBefore : evalBefore;
+  const povEvalAfter = isBlackMove ? -evalAfter : evalAfter;
 
-  // Very wide thresholds for depth 10 — evals swing 500-800cp in tactics
-  // Only flag truly terrible moves as blunders (>2 pawns lost)
-  if (evalLoss <= 200) return 'excellent';
-  if (evalLoss <= 500) return 'good';
-  if (evalLoss <= 1000) return 'inaccuracy';
-  if (evalLoss <= 2000) return 'mistake';
-  return 'blunder';
+  const winBefore = winningChances(povEvalBefore);
+  const winAfter = winningChances(povEvalAfter);
+  const delta = winBefore - winAfter; // positive = lost winning chances = bad move
+
+  // Lichess thresholds
+  if (delta >= 30) return 'blunder';
+  if (delta >= 20) return 'mistake';
+  if (delta >= 10) return 'inaccuracy';
+  if (delta >= 3) return 'good';
+  return 'excellent';
 }
