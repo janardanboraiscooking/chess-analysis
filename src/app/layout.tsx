@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'Chess Analysis — Free Game Review',
+  title: 'GoatedChess — Game Analysis',
   description: 'Upload a PGN and get instant Stockfish analysis with move classifications',
 };
 

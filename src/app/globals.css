@@ -169,7 +169,49 @@ h1, h2, h3 {
 
 /* Fade in */
 @keyframes fadeUp { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
-.fade-in { animation: fadeUp 0.35s ease forwards; }
+.fade-in { animation: fadeUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+
+/* Stagger children */
+.stagger > * { opacity: 0; animation: fadeUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+.stagger > *:nth-child(1) { animation-delay: 0ms; }
+.stagger > *:nth-child(2) { animation-delay: 60ms; }
+.stagger > *:nth-child(3) { animation-delay: 120ms; }
+.stagger > *:nth-child(4) { animation-delay: 180ms; }
+.stagger > *:nth-child(5) { animation-delay: 240ms; }
+
+/* Card hover */
+.card { transition: border-color 0.2s, box-shadow 0.2s, transform 0.2s; }
+.card:hover { border-color: #333; }
+
+/* Stat hover */
+.stat { transition: transform 0.2s, border-color 0.2s; }
+.stat:hover { transform: translateY(-2px); border-color: var(--gold-dim); }
+
+/* Button press */
+.btn { transition: all 0.15s cubic-bezier(0.16, 1, 0.3, 1); }
+.btn:active { transform: scale(0.97); }
+
+/* Move list item hover */
+.move-btn { transition: all 0.12s ease; }
+
+/* Upload area shimmer on drag */
+@keyframes shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
+.upload-area.dragging {
+  border-color: var(--gold);
+  background: linear-gradient(90deg, var(--gold-glow), transparent, var(--gold-glow));
+  background-size: 200% 100%;
+  animation: shimmer 1.5s linear infinite;
+}
+
+/* Eval graph line animation */
+@keyframes drawLine { from { stroke-dashoffset: 1000; } to { stroke-dashoffset: 0; } }
+
+/* Progress bar glow */
+@keyframes progressGlow {
+  0%, 100% { box-shadow: 0 0 4px var(--gold); }
+  50% { box-shadow: 0 0 12px var(--gold); }
+}
+.progress-animated { animation: progressGlow 2s ease-in-out infinite; }
 
 /* Divider */
 .divider {

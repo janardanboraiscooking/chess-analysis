@@ -5,8 +5,7 @@ import ChessBoard from '@/components/ChessBoard';
 import MoveList from '@/components/MoveList';
 import EvalGraph from '@/components/EvalGraph';
 import AnalysisProgress from '@/components/AnalysisProgress';
-import LichessLogin from '@/components/LichessLogin';
-import { parsePgnToPositions, analyzeGame, hasLichessToken } from '@/engine/analyzer';
+import { parsePgnToPositions, analyzeGame } from '@/engine/analyzer';
 import { saveGame, getAllGames, deleteGame } from '@/lib/db';
 import { AnalyzedGame, PositionEval } from '@/types';
 
@@ -19,20 +18,10 @@ export default function Home() {
   const [whiteACPL, setWhiteACPL] = useState(0);
   const [blackACPL, setBlackACPL] = useState(0);
   const [savedGames, setSavedGames] = useState<AnalyzedGame[]>([]);
-  const [tokenReady, setTokenReady] = useState(false);
   const workerRef = useRef<Worker | null>(null);
 
   useEffect(() => {
     getAllGames().then(setSavedGames).catch(() => {});
-    if (!localStorage.getItem('lichess_token') && typeof window !== 'undefined') {
-      const params = new URLSearchParams(window.location.search);
-      const token = params.get('token');
-      if (token) {
-        localStorage.setItem('lichess_token', token);
-        window.history.replaceState({}, '', window.location.pathname);
-      }
-    }
-    setTokenReady(true);
   }, []);
 
   const initWorker = useCallback(() => {
@@ -65,7 +54,7 @@ export default function Home() {
         setTimeout(() => { worker.removeEventListener('message', handler); resolve(); }, 5000);
       });
       const localEvals: PositionEval[] = [];
-      await analyzeGame(parsed.positions, parsed.sanMoves, parsed.moves, worker, 12, {
+      await analyzeGame(parsed.positions, parsed.sanMoves, parsed.moves, worker, 14, {
         onProgress: (current, total, move) => setProgress({ current, total, status: 'analyzing', currentMove: move }),
         onPositionEval: (index, eval_) => { localEvals[index] = eval_; setEvals([...localEvals]); },
         onComplete: (analyzedMoves, wACPL, bACPL) => {
@@ -93,10 +82,11 @@ export default function Home() {
   const blackBlunders = moves.filter(m => m.black?.classification === 'blunder').length;
   const whiteMistakes = moves.filter(m => m.white?.classification === 'mistake').length;
   const blackMistakes = moves.filter(m => m.black?.classification === 'mistake').length;
+  const whiteInacc = moves.filter(m => m.white?.classification === 'inaccuracy').length;
+  const blackInacc = moves.filter(m => m.black?.classification === 'inaccuracy').length;
 
   return (
     <main className="min-h-screen" style={{ background: 'var(--bg)' }}>
-      {/* Header */}
       <header style={{ borderBottom: '1px solid var(--border)', background: 'var(--bg)' }}>
         <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -104,10 +94,9 @@ export default function Home() {
               <span className="text-sm font-bold" style={{ fontFamily: 'Playfair Display, serif' }}>♚</span>
             </div>
             <span className="text-lg font-semibold tracking-tight" style={{ color: 'var(--white)', fontFamily: 'Playfair Display, serif' }}>
-              Chess Analysis
+              GoatedChess
             </span>
           </div>
-          {tokenReady && <LichessLogin onTokenChange={() => setTokenReady(true)} />}
         </div>
       </header>
 
@@ -135,8 +124,7 @@ export default function Home() {
 
         {moves.length > 0 && (
           <div className="fade-in">
-            {/* Stats */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6 stagger">
               <div className="stat">
                 <div className="stat-value">{whiteACPL}</div>
                 <div className="stat-label">White ACPL</div>
@@ -153,9 +141,12 @@ export default function Home() {
                 <div className="stat-value" style={{ color: 'var(--amber)' }}>{whiteMistakes + blackMistakes}</div>
                 <div className="stat-label">Mistakes</div>
               </div>
+              <div className="stat">
+                <div className="stat-value" style={{ color: 'var(--cream-dim)' }}>{whiteInacc + blackInacc}</div>
+                <div className="stat-label">Inaccuracies</div>
+              </div>
             </div>
 
-            {/* Main */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
               <div className="lg:col-span-2 space-y-4">
                 <div className="card p-4">

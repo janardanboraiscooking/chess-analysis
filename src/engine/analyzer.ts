@@ -102,33 +102,11 @@ export interface AnalysisCallbacks {
   onError: (error: string) => void;
 }
 
-// Lichess token management
-function getLichessToken(): string | null {
-  if (typeof window === 'undefined') return null;
-  return localStorage.getItem('lichess_token');
-}
-
-export function setLichessToken(token: string): void {
-  localStorage.setItem('lichess_token', token);
-}
-
-export function clearLichessToken(): void {
-  localStorage.removeItem('lichess_token');
-}
-
-export function hasLichessToken(): boolean {
-  return !!getLichessToken();
-}
-
+// Lichess cloud eval (no auth needed for basic use)
 async function fetchLichessEval(fen: string): Promise<PositionEval | null> {
   try {
-    const token = getLichessToken();
-    const headers: Record<string, string> = {};
-    if (token) headers['Authorization'] = `Bearer ${token}`;
-
     const res = await fetch(
-      `https://lichess.org/api/cloud-eval?fen=${encodeURIComponent(fen)}&multiPv=1`,
-      { headers }
+      `https://lichess.org/api/cloud-eval?fen=${encodeURIComponent(fen)}&multiPv=1`
     );
     if (!res.ok) return null;
     const data = await res.json();
@@ -187,7 +165,7 @@ function analyzePositionWorker(
   });
 }
 
-const NUM_WORKERS = 8;
+const NUM_WORKERS = 16;
 
 function createWorkerPool(): Worker[] {
   const workers: Worker[] = [];
@@ -221,8 +199,7 @@ export async function analyzeGame(
   callbacks: AnalysisCallbacks
 ): Promise<void> {
   const evals: PositionEval[] = new Array(positions.length);
-  const hasToken = hasLichessToken();
-  const rateLimitMs = hasToken ? 110 : 1100;
+  const rateLimitMs = 1100; // 1 req/sec for anonymous Lichess API
 
   // Detect terminal positions
   const terminal = new Set<number>();
