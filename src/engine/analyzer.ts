@@ -102,14 +102,20 @@ export interface AnalysisCallbacks {
   onError: (error: string) => void;
 }
 
-/**
- * Fetch eval from Lichess cloud eval API.
- * Returns eval in centipawns from white's perspective, or null if not available.
- */
-async function fetchLichessEval(fen: string): Promise<{ eval: number; bestMove: string } | null> {
+// Simple rate limiter for Lichess API (max 1 request per 100ms)
+let lastFetch = 0;
+async function rateLimitedFetch(url: string): Promise<Response> {
+  const now = Date.now();
+  const wait = Math.max(0, 100 - (now - lastFetch));
+  if (wait > 0) await new Promise(r => setTimeout(r, wait));
+  lastFetch = Date.now();
+  return fetch(url);
+}
+
+async function fetchLichessEval(fen: string): Promise<PositionEval | null> {
   try {
     const url = `https://lichess.org/api/cloud-eval?fen=${encodeURIComponent(fen)}&multiPv=1`;
-    const res = await fetch(url);
+    const res = await rateLimitedFetch(url);
     if (!res.ok) return null;
     const data = await res.json();
 
@@ -118,39 +124,23 @@ async function fetchLichessEval(fen: string): Promise<{ eval: number; bestMove: 
       let evalCp = 0;
 
       if (pv.cp !== undefined) {
-        // Centipawn eval — Lichess returns from white's perspective
         evalCp = pv.cp;
       } else if (pv.mate !== undefined) {
-        // Mate eval — convert to centipawns
         evalCp = pv.mate > 0 ? 30000 - pv.mate * 2 : -30000 - Math.abs(pv.mate) * 2;
       }
 
       return {
+        fen,
         eval: evalCp,
         bestMove: pv.moves?.split(' ')[0] ?? '',
+        pv: pv.moves?.split(' ') ?? [],
+        depth: data.depth ?? 20,
       };
     }
     return null;
   } catch {
     return null;
   }
-}
-
-/**
- * Analyze a single position — try Lichess cloud first, fall back to local Stockfish.
- */
-async function analyzePositionLichess(fen: string): Promise<PositionEval> {
-  const cloud = await fetchLichessEval(fen);
-  if (cloud) {
-    return {
-      fen,
-      eval: cloud.eval,
-      bestMove: cloud.bestMove,
-      pv: [],
-      depth: 20,
-    };
-  }
-  throw new Error('Not in Lichess cloud');
 }
 
 function analyzePositionLocal(
@@ -191,7 +181,7 @@ function analyzePositionLocal(
   });
 }
 
-const NUM_WORKERS = 32;
+const NUM_WORKERS = 16;
 
 function createWorkerPool(): Worker[] {
   const workers: Worker[] = [];
@@ -246,63 +236,54 @@ export async function analyzeGame(
   let completed = 0;
   const total = positions.length;
 
-  await new Promise<void>(async (resolveAll) => {
-    let nextIndex = 0;
+  // Process positions sequentially for Lichess API (rate limit friendly)
+  // But use parallel workers for local Stockfish fallback
+  for (let i = 0; i < positions.length; i++) {
+    callbacks.onProgress(completed, total, i === 0 ? 'Starting position' : sanMoves[i - 1]);
 
-    const processNext = async (workerIdx: number) => {
-      while (nextIndex < positions.length) {
-        const i = nextIndex++;
-
-        callbacks.onProgress(completed, total, i === 0 ? 'Starting position' : sanMoves[i - 1]);
-
-        if (terminal.has(i)) {
-          const fallback = evals[Math.max(0, i - 1)] ?? { fen: positions[i], eval: 0, bestMove: '', pv: [], depth };
-          evals[i] = { ...fallback, fen: positions[i] };
-          completed++;
-          callbacks.onPositionEval(i, evals[i]);
-          continue;
-        }
-
-        // Try Lichess cloud first (instant, accurate)
-        try {
-          const result = await analyzePositionLichess(positions[i]);
-          evals[i] = result;
-        } catch {
-          // Fall back to local Stockfish
-          try {
-            const result = await analyzePositionLocal(workers[workerIdx], positions[i], depth);
-            evals[i] = result;
-          } catch {
-            const fallback = evals[Math.max(0, i - 1)] ?? { fen: positions[i], eval: 0, bestMove: '', pv: [], depth };
-            evals[i] = { ...fallback, fen: positions[i] };
-          }
-        }
-
-        completed++;
-        callbacks.onProgress(completed, total, i === 0 ? 'Starting position' : sanMoves[i - 1]);
-        callbacks.onPositionEval(i, evals[i]);
-      }
-    };
-
-    await Promise.all(workers.map((_, idx) => processNext(idx)));
-    workers.forEach(w => w.terminate());
-
-    try {
-      const analyzedMoves = buildAnalysisResult(evals, sanMoves, uciMoves);
-      const allEvalLosses = analyzedMoves.flatMap(m => {
-        const entries = [];
-        if (m.white) entries.push({ evalLoss: m.white.evalLoss, isBlack: false });
-        if (m.black) entries.push({ evalLoss: m.black.evalLoss, isBlack: true });
-        return entries;
-      });
-      const { calculateACPL } = await import('@/lib/acpl');
-      const whiteACPL = calculateACPL(allEvalLosses, false);
-      const blackACPL = calculateACPL(allEvalLosses, true);
-      callbacks.onComplete(analyzedMoves, whiteACPL, blackACPL);
-    } catch {
-      callbacks.onError('Failed to build results');
+    if (terminal.has(i)) {
+      const fallback = evals[Math.max(0, i - 1)] ?? { fen: positions[i], eval: 0, bestMove: '', pv: [], depth };
+      evals[i] = { ...fallback, fen: positions[i] };
+      completed++;
+      callbacks.onPositionEval(i, evals[i]);
+      continue;
     }
 
-    resolveAll();
-  });
+    // Try Lichess cloud first
+    const lichessResult = await fetchLichessEval(positions[i]);
+    if (lichessResult) {
+      evals[i] = lichessResult;
+    } else {
+      // Fall back to local Stockfish (use worker i % NUM_WORKERS)
+      try {
+        const result = await analyzePositionLocal(workers[i % NUM_WORKERS], positions[i], depth);
+        evals[i] = result;
+      } catch {
+        const fallback = evals[Math.max(0, i - 1)] ?? { fen: positions[i], eval: 0, bestMove: '', pv: [], depth };
+        evals[i] = { ...fallback, fen: positions[i] };
+      }
+    }
+
+    completed++;
+    callbacks.onProgress(completed, total, i === 0 ? 'Starting position' : sanMoves[i - 1]);
+    callbacks.onPositionEval(i, evals[i]);
+  }
+
+  workers.forEach(w => w.terminate());
+
+  try {
+    const analyzedMoves = buildAnalysisResult(evals, sanMoves, uciMoves);
+    const allEvalLosses = analyzedMoves.flatMap(m => {
+      const entries = [];
+      if (m.white) entries.push({ evalLoss: m.white.evalLoss, isBlack: false });
+      if (m.black) entries.push({ evalLoss: m.black.evalLoss, isBlack: true });
+      return entries;
+    });
+    const { calculateACPL } = await import('@/lib/acpl');
+    const whiteACPL = calculateACPL(allEvalLosses, false);
+    const blackACPL = calculateACPL(allEvalLosses, true);
+    callbacks.onComplete(analyzedMoves, whiteACPL, blackACPL);
+  } catch {
+    callbacks.onError('Failed to build results');
+  }
 }
