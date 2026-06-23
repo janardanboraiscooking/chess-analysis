@@ -128,7 +128,6 @@ function analyzePosition(
 export async function analyzeGame(
   positions: string[],
   sanMoves: string[],
-  uciMoves: string[],
   worker: Worker,
   depth: number,
   callbacks: AnalysisCallbacks

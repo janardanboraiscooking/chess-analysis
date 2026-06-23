@@ -58,7 +58,6 @@ export default function Home() {
     await analyzeGame(
       parsed.positions,
       parsed.sanMoves,
-      parsed.uciMoves,
       worker,
       16,
       {
