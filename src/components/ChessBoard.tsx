@@ -13,6 +13,19 @@ interface ChessBoardProps {
 
 export default function ChessBoard({ pgn, currentMoveIndex, orientation = 'white', whiteName, blackName }: ChessBoardProps) {
   const [fen, setFen] = useState('start');
+  const [boardSize, setBoardSize] = useState(400);
+
+  useEffect(() => {
+    const updateSize = () => {
+      const w = window.innerWidth;
+      if (w < 640) setBoardSize(Math.min(w - 80, 340));
+      else if (w < 1024) setBoardSize(360);
+      else setBoardSize(400);
+    };
+    updateSize();
+    window.addEventListener('resize', updateSize);
+    return () => window.removeEventListener('resize', updateSize);
+  }, []);
 
   useEffect(() => {
     const chess = new Chess();
@@ -27,22 +40,21 @@ export default function ChessBoard({ pgn, currentMoveIndex, orientation = 'white
 
   return (
     <div className="flex flex-col">
-      {/* Black player info (top when white at bottom) */}
       {orientation === 'white' ? (
-        <div className="flex items-center justify-between mb-2 px-1">
-          <span className="text-xs font-medium text-[var(--cream-dim)]">{blackName || 'Black'}</span>
-          {whiteName && <span className="text-[10px] text-[var(--cream-muted)]">♔</span>}
+        <div className="flex items-center justify-between mb-1 px-1">
+          <span className="text-[10px] md:text-xs font-medium text-[var(--cream-dim)]">{blackName || 'Black'}</span>
+          {whiteName && <span className="text-[8px] md:text-[10px] text-[var(--cream-muted)]">♔</span>}
         </div>
       ) : (
-        <div className="flex items-center justify-between mb-2 px-1">
-          <span className="text-xs font-medium text-[var(--cream-dim)]">{whiteName || 'White'}</span>
-          <span className="text-[10px] text-[var(--cream-muted)]">♚</span>
+        <div className="flex items-center justify-between mb-1 px-1">
+          <span className="text-[10px] md:text-xs font-medium text-[var(--cream-dim)]">{whiteName || 'White'}</span>
+          <span className="text-[8px] md:text-[10px] text-[var(--cream-muted)]">♚</span>
         </div>
       )}
 
       <Chessboard
         position={fen}
-        boardWidth={400}
+        boardWidth={boardSize}
         animationDuration={200}
         arePiecesDraggable={false}
         boardOrientation={orientation}
@@ -52,16 +64,15 @@ export default function ChessBoard({ pgn, currentMoveIndex, orientation = 'white
         }}
       />
 
-      {/* White player info (bottom when white at bottom) */}
       {orientation === 'white' ? (
-        <div className="flex items-center justify-between mt-2 px-1">
-          <span className="text-xs font-medium text-[var(--cream-dim)]">{whiteName || 'White'}</span>
-          <span className="text-[10px] text-[var(--cream-muted)]">♚</span>
+        <div className="flex items-center justify-between mt-1 px-1">
+          <span className="text-[10px] md:text-xs font-medium text-[var(--cream-dim)]">{whiteName || 'White'}</span>
+          <span className="text-[8px] md:text-[10px] text-[var(--cream-muted)]">♚</span>
         </div>
       ) : (
-        <div className="flex items-center justify-between mt-2 px-1">
-          <span className="text-xs font-medium text-[var(--cream-dim)]">{blackName || 'Black'}</span>
-          {whiteName && <span className="text-[10px] text-[var(--cream-muted)]">♔</span>}
+        <div className="flex items-center justify-between mt-1 px-1">
+          <span className="text-[10px] md:text-xs font-medium text-[var(--cream-dim)]">{blackName || 'Black'}</span>
+          {whiteName && <span className="text-[8px] md:text-[10px] text-[var(--cream-muted)]">♔</span>}
         </div>
       )}
     </div>
