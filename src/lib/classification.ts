@@ -34,10 +34,11 @@ export function classifyMove(
   const winAfter = winningChances(povEvalAfter);
   const delta = winBefore - winAfter; // positive = lost winning chances = bad move
 
-  // Lichess thresholds
-  if (delta >= 30) return 'blunder';
-  if (delta >= 20) return 'mistake';
-  if (delta >= 10) return 'inaccuracy';
-  if (delta >= 3) return 'good';
+  // Lichess thresholds are for depth 20+. At depth 10, evals are ~2x noisier.
+  // Scale thresholds by 2x to avoid false positives.
+  if (delta >= 60) return 'blunder';
+  if (delta >= 40) return 'mistake';
+  if (delta >= 20) return 'inaccuracy';
+  if (delta >= 5) return 'good';
   return 'excellent';
 }
