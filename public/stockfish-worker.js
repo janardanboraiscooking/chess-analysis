@@ -1,18 +1,20 @@
 // Stockfish Web Worker — loads from local /stockfish/stockfish.js
+// Logs ALL messages for debugging
 
 var _realPostMessage = self.postMessage.bind(self);
-var _msgCount = 0;
 
+// Intercept ALL postMessage from stockfish.js
 self.postMessage = function(msg) {
-  _msgCount++;
   if (typeof msg === 'string') {
+    // Log EVERYTHING stockfish sends
+    _realPostMessage({ type: 'sf_output', payload: msg });
+
     if (msg === 'uciok') {
       _realPostMessage({ type: 'ready' });
-    } else if (msg.indexOf('info depth') === 0) {
-      _realPostMessage({ type: 'info', payload: msg });
     } else if (msg.indexOf('bestmove') === 0) {
       _realPostMessage({ type: 'bestmove', payload: msg });
     }
+    // Don't filter info lines — let analyzer parse raw output
   } else {
     _realPostMessage(msg);
   }
@@ -20,9 +22,9 @@ self.postMessage = function(msg) {
 
 try {
   importScripts('/stockfish/stockfish.js');
-  _realPostMessage({ type: 'debug', payload: 'stockfish.js loaded successfully' });
+  _realPostMessage({ type: 'debug', payload: 'stockfish.js loaded OK' });
 } catch (err) {
-  _realPostMessage({ type: 'error', payload: 'Failed to load stockfish.js: ' + err.message });
+  _realPostMessage({ type: 'error', payload: 'Failed to load: ' + err.message });
 }
 
 var _sfHandler = self.onmessage;
@@ -33,6 +35,7 @@ self.onmessage = function(e) {
   }
 };
 
+// Auto-initialize
 if (_sfHandler) {
   _sfHandler({ data: 'uci' });
 }
