@@ -134,7 +134,7 @@ function analyzePosition(
   });
 }
 
-const NUM_WORKERS = 8;
+const NUM_WORKERS = 16;
 
 function createWorkerPool(): Worker[] {
   const workers: Worker[] = [];

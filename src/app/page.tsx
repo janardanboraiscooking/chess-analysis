@@ -70,7 +70,7 @@ export default function Home() {
         parsed.sanMoves,
         parsed.moves,
         worker,
-        10,
+        20,
         {
           onProgress: (current, total, move) => {
             setProgress({ current, total, status: 'analyzing', currentMove: move });
