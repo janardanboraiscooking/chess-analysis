@@ -106,7 +106,7 @@ function analyzePositionWorker(
   depth: number
 ): Promise<PositionEval> {
   return new Promise((resolve, reject) => {
-    const timeout = setTimeout(() => reject(new Error('Timeout')), 15000);
+    const timeout = setTimeout(() => reject(new Error('Timeout')), 60000);
     let lastEval = 0;
     let lastPV: string[] = [];
     let lastBestMove = '';
@@ -150,7 +150,7 @@ function analyzePositionWorker(
   });
 }
 
-const NUM_WORKERS = 4;
+const NUM_WORKERS = 2;
 const DISPLAY_DELAY_MS = 310;
 
 function createWorkerPool(): Worker[] {
