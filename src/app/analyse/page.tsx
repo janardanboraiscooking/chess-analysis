@@ -45,7 +45,7 @@ export default function AnalysePage() {
       await new Promise<void>((resolve) => {
         const handler = (e: MessageEvent) => { if (e.data.type === 'ready') { worker.removeEventListener('message', handler); resolve(); } };
         worker.addEventListener('message', handler);
-        setTimeout(() => { worker.removeEventListener('message', handler); resolve(); }, 10000);
+        setTimeout(() => { worker.removeEventListener('message', handler); resolve(); }, 15000);
       });
       const le: PositionEval[] = [];
       await analyzeGame(parsed.positions, parsed.sanMoves, parsed.moves, worker, 10, {
@@ -72,7 +72,6 @@ export default function AnalysePage() {
   const total = moves.length * 2;
 
   const curEval = evals[currentMoveIndex];
-  // When flipped, invert eval (from viewed player's perspective)
   const rawEvalCp = curEval?.eval ?? 0;
   const evalCp = flipped ? -rawEvalCp : rawEvalCp;
   const evalPawns = (evalCp / 100).toFixed(2);
@@ -148,15 +147,11 @@ export default function AnalysePage() {
 
         {moves.length > 0 && (
           <div className="fade-in">
-            {/* Stats */}
             <div className="grid grid-cols-3 md:grid-cols-6 gap-2 mb-4 stagger">
               {[
-                { v: whiteACPL, l: 'W ACPL', c: '' },
-                { v: blackACPL, l: 'B ACPL', c: '' },
-                { v: wb + bb, l: 'Blunders', c: 'text-[var(--red)]' },
-                { v: wm + bm, l: 'Mistakes', c: 'text-[var(--amber)]' },
-                { v: wi + bi, l: 'Inaccuracies', c: 'text-[var(--cream-dim)]' },
-                { v: wbe + bbe, l: 'Best/Exc', c: 'text-[var(--green)]' },
+                { v: whiteACPL, l: 'W ACPL', c: '' }, { v: blackACPL, l: 'B ACPL', c: '' },
+                { v: wb + bb, l: 'Blunders', c: 'text-[var(--red)]' }, { v: wm + bm, l: 'Mistakes', c: 'text-[var(--amber)]' },
+                { v: wi + bi, l: 'Inaccuracies', c: 'text-[var(--cream-dim)]' }, { v: wbe + bbe, l: 'Best/Exc', c: 'text-[var(--green)]' },
               ].map((s) => (
                 <div key={s.l} className="stat py-2 md:py-3">
                   <div className={`text-lg md:text-xl font-[Playfair_Display] font-bold text-[var(--cream)] ${s.c}`}>{s.v}</div>
@@ -165,80 +160,32 @@ export default function AnalysePage() {
               ))}
             </div>
 
-            {/* Main Grid */}
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
-              {/* Left: Board */}
               <div className="col-span-1 lg:col-span-5 space-y-3">
                 <div className="card p-2 md:p-3">
                   <div className="flex gap-2 md:gap-3">
-                    {/* Eval Bar */}
                     <div className="flex flex-col items-center gap-1">
                       <span className="mono text-[9px] md:text-[10px] text-[var(--cream-muted)]">{evalSide}</span>
                       <div className="eval-bar-container h-64 md:h-80">
-                        <div className="eval-bar-fill" style={{
-                          height: `${Math.min(100, Math.max(5, 50 + (evalCp / 100) * 2))}%`,
-                          background: evalCp >= 0 ? 'var(--cream)' : '#333'
-                        }} />
+                        <div className="eval-bar-fill" style={{ height: `${Math.min(100, Math.max(5, 50 + (evalCp / 100) * 2))}%`, background: evalCp >= 0 ? 'var(--cream)' : '#333' }} />
                       </div>
                       <span className="mono text-[10px] md:text-xs font-semibold" style={{ color: evalCp > 0 ? 'var(--cream)' : 'var(--cream-muted)' }}>
                         {evalCp > 0 ? '+' : ''}{evalPawns}
                       </span>
                     </div>
-                    {/* Board */}
                     <div className="flex-1 min-w-0">
                       <ChessBoard pgn={pgn} currentMoveIndex={currentMoveIndex} orientation={flipped ? 'black' : 'white'} whiteName={gameInfo?.white} blackName={gameInfo?.black} />
                     </div>
                   </div>
                   <div className="flex justify-center mt-2">
-                    <button onClick={() => setFlipped(!flipped)} className="text-xs px-3 py-1.5 rounded-md transition-colors hover:bg-[#111] text-[var(--cream-muted)] hover:text-[var(--cream-dim)]">
-                      ↻ Flip Board
-                    </button>
+                    <button onClick={() => setFlipped(!flipped)} className="text-xs px-3 py-1.5 rounded-md transition-colors hover:bg-[#111] text-[var(--cream-muted)] hover:text-[var(--cream-dim)]">↻ Flip Board</button>
                   </div>
                 </div>
                 <div className="card p-2 md:p-3">
                   <EvalGraph evals={evals} currentMoveIndex={currentMoveIndex} onMoveClick={setCurrentMoveIndex} flipped={flipped} />
                 </div>
               </div>
-              ))}
-            </div>
 
-            {/* Main Grid */}
-            <div className="grid grid-cols-12 gap-4">
-              {/* Left: Board */}
-              <div className="col-span-12 lg:col-span-5 space-y-3">
-                <div className="card p-3">
-                  <div className="flex gap-3">
-                    {/* Eval Bar */}
-                    <div className="flex flex-col items-center gap-1">
-                      <span className="mono text-[10px] text-[var(--cream-muted)]">{evalSide}</span>
-                      <div className="eval-bar-container h-80">
-                        <div className="eval-bar-fill" style={{
-                          height: `${Math.min(100, Math.max(5, 50 + (evalCp / 100) * 2))}%`,
-                          background: evalCp >= 0 ? 'var(--cream)' : '#333'
-                        }} />
-                      </div>
-                      <span className="mono text-xs font-semibold" style={{ color: evalCp > 0 ? 'var(--cream)' : 'var(--cream-muted)' }}>
-                        {evalCp > 0 ? '+' : ''}{evalPawns}
-                      </span>
-                    </div>
-                    {/* Board */}
-                    <div className="flex-1">
-                      <ChessBoard pgn={pgn} currentMoveIndex={currentMoveIndex} orientation={flipped ? 'black' : 'white'} whiteName={gameInfo?.white} blackName={gameInfo?.black} />
-                    </div>
-                  </div>
-                  {/* Flip button */}
-                  <div className="flex justify-center mt-2">
-                    <button onClick={() => setFlipped(!flipped)} className="text-xs px-3 py-1 rounded-md transition-colors hover:bg-[#111] text-[var(--cream-muted)] hover:text-[var(--cream-dim)]">
-                      ↻ Flip Board
-                    </button>
-                  </div>
-                </div>
-                <div className="card p-3">
-                  <EvalGraph evals={evals} currentMoveIndex={currentMoveIndex} onMoveClick={setCurrentMoveIndex} flipped={flipped} />
-                </div>
-              </div>
-
-              {/* Right: Moves */}
               <div className="col-span-1 lg:col-span-7 space-y-3">
                 {curMove && (
                   <div className="card p-3 md:p-4 fade-in" key={currentMoveIndex}>
@@ -266,7 +213,6 @@ export default function AnalysePage() {
                     )}
                   </div>
                 )}
-
                 <div className="card">
                   <div className="flex border-b border-[#222]">
                     {(['moves', 'details'] as const).map((tab) => (
