@@ -102,42 +102,27 @@ export interface AnalysisCallbacks {
   onError: (error: string) => void;
 }
 
-// Simple rate limiter for Lichess API (max 1 request per 100ms)
-let lastFetch = 0;
-async function rateLimitedFetch(url: string): Promise<Response> {
-  const now = Date.now();
-  const wait = Math.max(0, 100 - (now - lastFetch));
-  if (wait > 0) await new Promise(r => setTimeout(r, wait));
-  lastFetch = Date.now();
-  return fetch(url);
-}
-
 async function fetchLichessEval(fen: string): Promise<PositionEval | null> {
   try {
-    const url = `https://lichess.org/api/cloud-eval?fen=${encodeURIComponent(fen)}&multiPv=1`;
-    const res = await rateLimitedFetch(url);
+    const res = await fetch(
+      `https://lichess.org/api/cloud-eval?fen=${encodeURIComponent(fen)}&multiPv=1`
+    );
     if (!res.ok) return null;
     const data = await res.json();
+    if (!data.pvs?.length) return null;
 
-    if (data.pvs && data.pvs.length > 0) {
-      const pv = data.pvs[0];
-      let evalCp = 0;
+    const pv = data.pvs[0];
+    let evalCp = 0;
+    if (pv.cp !== undefined) evalCp = pv.cp;
+    else if (pv.mate !== undefined) evalCp = pv.mate > 0 ? 30000 - pv.mate * 2 : -30000 - Math.abs(pv.mate) * 2;
 
-      if (pv.cp !== undefined) {
-        evalCp = pv.cp;
-      } else if (pv.mate !== undefined) {
-        evalCp = pv.mate > 0 ? 30000 - pv.mate * 2 : -30000 - Math.abs(pv.mate) * 2;
-      }
-
-      return {
-        fen,
-        eval: evalCp,
-        bestMove: pv.moves?.split(' ')[0] ?? '',
-        pv: pv.moves?.split(' ') ?? [],
-        depth: data.depth ?? 20,
-      };
-    }
-    return null;
+    return {
+      fen,
+      eval: evalCp,
+      bestMove: pv.moves?.split(' ')[0] ?? '',
+      pv: pv.moves?.split(' ') ?? [],
+      depth: data.depth ?? 20,
+    };
   } catch {
     return null;
   }
@@ -149,7 +134,7 @@ function analyzePositionLocal(
   depth: number
 ): Promise<PositionEval> {
   return new Promise((resolve, reject) => {
-    const timeout = setTimeout(() => reject(new Error('Timeout')), 15000);
+    const timeout = setTimeout(() => reject(new Error('Timeout')), 10000);
     let lastEval = 0;
     let lastPV: string[] = [];
 
@@ -158,11 +143,10 @@ function analyzePositionLocal(
         const line = e.data.payload;
         const cpMatch = line.match(/score cp (-?\d+)/);
         const mateMatch = line.match(/score mate (-?\d+)/);
-        if (cpMatch) {
-          lastEval = parseInt(cpMatch[1]);
-        } else if (mateMatch) {
-          const mateIn = parseInt(mateMatch[1]);
-          lastEval = mateIn > 0 ? 30000 - mateIn * 2 : -30000 - mateIn * 2;
+        if (cpMatch) lastEval = parseInt(cpMatch[1]);
+        else if (mateMatch) {
+          const m = parseInt(mateMatch[1]);
+          lastEval = m > 0 ? 30000 - m * 2 : -30000 - Math.abs(m) * 2;
         }
         const pvMatch = line.match(/pv (.+)/);
         if (pvMatch) lastPV = pvMatch[1].split(' ');
@@ -170,8 +154,7 @@ function analyzePositionLocal(
       if (e.data.type === 'bestmove') {
         clearTimeout(timeout);
         worker.removeEventListener('message', handler);
-        const bestMove = e.data.payload.split(' ')[1];
-        resolve({ fen, eval: lastEval, bestMove, pv: lastPV, depth });
+        resolve({ fen, eval: lastEval, bestMove: e.data.payload.split(' ')[1], pv: lastPV, depth });
       }
     };
 
@@ -181,7 +164,7 @@ function analyzePositionLocal(
   });
 }
 
-const NUM_WORKERS = 16;
+const NUM_WORKERS = 8;
 
 function createWorkerPool(): Worker[] {
   const workers: Worker[] = [];
@@ -202,10 +185,7 @@ function waitForReady(worker: Worker, timeoutMs = 5000): Promise<void> {
       }
     };
     worker.addEventListener('message', handler);
-    setTimeout(() => {
-      worker.removeEventListener('message', handler);
-      resolve();
-    }, timeoutMs);
+    setTimeout(() => { worker.removeEventListener('message', handler); resolve(); }, timeoutMs);
   });
 }
 
@@ -219,54 +199,72 @@ export async function analyzeGame(
 ): Promise<void> {
   const evals: PositionEval[] = new Array(positions.length);
 
-  // Identify terminal positions
+  // Detect terminal positions
   const terminal = new Set<number>();
   for (let i = 0; i < positions.length; i++) {
-    const testBoard = new Chess();
-    try { testBoard.load(positions[i]); } catch {}
-    if (testBoard.isGameOver()) {
-      terminal.add(i);
-    }
+    const b = new Chess();
+    try { b.load(positions[i]); } catch {}
+    if (b.isGameOver()) terminal.add(i);
   }
 
-  // Create worker pool for local fallback
+  // Create local workers
   const workers = createWorkerPool();
   await Promise.all(workers.map(w => waitForReady(w)));
 
   let completed = 0;
   const total = positions.length;
 
-  // Process positions sequentially for Lichess API (rate limit friendly)
-  // But use parallel workers for local Stockfish fallback
+  // Phase 1: Try Lichess cloud for ALL positions (batch, fast for known positions)
+  const lichessResults = new Map<number, PositionEval>();
+  const needsLocal: number[] = [];
+
+  // Fetch Lichess evals with rate limiting (1/sec for anonymous)
   for (let i = 0; i < positions.length; i++) {
+    if (terminal.has(i)) continue;
     callbacks.onProgress(completed, total, i === 0 ? 'Starting position' : sanMoves[i - 1]);
 
-    if (terminal.has(i)) {
-      const fallback = evals[Math.max(0, i - 1)] ?? { fen: positions[i], eval: 0, bestMove: '', pv: [], depth };
-      evals[i] = { ...fallback, fen: positions[i] };
+    const result = await fetchLichessEval(positions[i]);
+    if (result) {
+      lichessResults.set(i, result);
       completed++;
-      callbacks.onPositionEval(i, evals[i]);
-      continue;
-    }
-
-    // Try Lichess cloud first
-    const lichessResult = await fetchLichessEval(positions[i]);
-    if (lichessResult) {
-      evals[i] = lichessResult;
+      callbacks.onPositionEval(i, result);
     } else {
-      // Fall back to local Stockfish (use worker i % NUM_WORKERS)
-      try {
-        const result = await analyzePositionLocal(workers[i % NUM_WORKERS], positions[i], depth);
-        evals[i] = result;
-      } catch {
-        const fallback = evals[Math.max(0, i - 1)] ?? { fen: positions[i], eval: 0, bestMove: '', pv: [], depth };
-        evals[i] = { ...fallback, fen: positions[i] };
-      }
+      needsLocal.push(i);
     }
+  }
 
-    completed++;
-    callbacks.onProgress(completed, total, i === 0 ? 'Starting position' : sanMoves[i - 1]);
-    callbacks.onPositionEval(i, evals[i]);
+  // Phase 2: Analyze remaining positions with local Stockfish (parallel)
+  if (needsLocal.length > 0) {
+    let localIdx = 0;
+
+    const processLocal = async (workerIdx: number) => {
+      while (localIdx < needsLocal.length) {
+        const i = needsLocal[localIdx++];
+        try {
+          const result = await analyzePositionLocal(workers[workerIdx], positions[i], depth);
+          evals[i] = result;
+        } catch {
+          const fallback = evals[Math.max(0, i - 1)] ?? { fen: positions[i], eval: 0, bestMove: '', pv: [], depth };
+          evals[i] = { ...fallback, fen: positions[i] };
+        }
+        completed++;
+        callbacks.onProgress(completed, total, sanMoves[i - 1] ?? '');
+        callbacks.onPositionEval(i, evals[i]);
+      }
+    };
+
+    await Promise.all(workers.map((_, idx) => processLocal(idx)));
+  }
+
+  // Merge Lichess results
+  for (const [i, result] of lichessResults) {
+    evals[i] = result;
+  }
+
+  // Fill terminal positions
+  for (const i of terminal) {
+    const fallback = evals[Math.max(0, i - 1)] ?? { fen: positions[i], eval: 0, bestMove: '', pv: [], depth };
+    evals[i] = { ...fallback, fen: positions[i] };
   }
 
   workers.forEach(w => w.terminate());
