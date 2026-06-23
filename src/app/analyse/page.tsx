@@ -48,7 +48,7 @@ export default function AnalysePage() {
         setTimeout(() => { worker.removeEventListener('message', handler); resolve(); }, 15000);
       });
       const le: PositionEval[] = [];
-      await analyzeGame(parsed.positions, parsed.sanMoves, parsed.moves, worker, 10, {
+      await analyzeGame(parsed.positions, parsed.sanMoves, parsed.moves, worker, 12, {
         onProgress: (c, t, m) => setProgress({ current: c, total: t, status: 'analyzing', currentMove: m }),
         onPositionEval: (i, e) => { le[i] = e; setEvals([...le]); },
         onComplete: (am, wA, bA) => {
@@ -74,7 +74,8 @@ export default function AnalysePage() {
   const curEval = evals[currentMoveIndex];
   const rawEvalCp = curEval?.eval ?? 0;
   const evalCp = flipped ? -rawEvalCp : rawEvalCp;
-  const evalPawns = (evalCp / 100).toFixed(2);
+  const isMate = Math.abs(evalCp) > 29000;
+  const evalDisplay = isMate ? 'MATE' : (evalCp > 0 ? '+' : '') + (evalCp / 100).toFixed(1);
   const evalSide = evalCp > 0 ? (flipped ? 'Black' : 'White') : evalCp < 0 ? (flipped ? 'White' : 'Black') : 'Equal';
 
   const curMove = currentMoveIndex < total
@@ -167,10 +168,10 @@ export default function AnalysePage() {
                     <div className="flex flex-col items-center gap-1">
                       <span className="mono text-[9px] md:text-[10px] text-[var(--cream-muted)]">{evalSide}</span>
                       <div className="eval-bar-container h-64 md:h-80">
-                        <div className="eval-bar-fill" style={{ height: `${Math.min(100, Math.max(5, 50 + (evalCp / 100) * 2))}%`, background: evalCp >= 0 ? 'var(--cream)' : '#333' }} />
+                        <div className="eval-bar-fill" style={{ height: isMate ? (evalCp > 0 ? '100%' : '5%') : `${Math.min(100, Math.max(5, 50 + (evalCp / 100) * 2))}%`, background: evalCp >= 0 ? 'var(--cream)' : '#333' }} />
                       </div>
                       <span className="mono text-[10px] md:text-xs font-semibold" style={{ color: evalCp > 0 ? 'var(--cream)' : 'var(--cream-muted)' }}>
-                        {evalCp > 0 ? '+' : ''}{evalPawns}
+                        {evalDisplay}
                       </span>
                     </div>
                     <div className="flex-1 min-w-0">
