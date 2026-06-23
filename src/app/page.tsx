@@ -23,6 +23,16 @@ export default function Home() {
 
   useEffect(() => {
     getAllGames().then(setSavedGames).catch(() => {});
+    // Auto-set Lichess token from env if available
+    if (!localStorage.getItem('lichess_token') && typeof window !== 'undefined') {
+      // Token set via URL param: ?token=lip_xxx
+      const params = new URLSearchParams(window.location.search);
+      const token = params.get('token');
+      if (token) {
+        localStorage.setItem('lichess_token', token);
+        window.history.replaceState({}, '', window.location.pathname);
+      }
+    }
   }, []);
 
   const initWorker = useCallback(() => {
