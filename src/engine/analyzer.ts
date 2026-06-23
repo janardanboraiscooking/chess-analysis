@@ -9,12 +9,16 @@ export interface PgnParseResult {
   result: string;
   whiteName: string;
   blackName: string;
+  event?: string;
+  date?: string;
 }
 
 export function parsePgnToPositions(pgn: string): PgnParseResult {
   const whiteMatch = pgn.match(/\[White\s+"([^"]*)"\]/);
   const blackMatch = pgn.match(/\[Black\s+"([^"]*)"\]/);
   const resultMatch = pgn.match(/\[Result\s+"([^"]*)"\]/);
+  const eventMatch = pgn.match(/\[Event\s+"([^"]*)"\]/);
+  const dateMatch = pgn.match(/\[Date\s+"([^"]*)"\]/);
 
   const chess = new Chess();
   try {
@@ -47,8 +51,10 @@ export function parsePgnToPositions(pgn: string): PgnParseResult {
     moves,
     sanMoves,
     result: resultMatch?.[1] || '*',
-    whiteName: whiteMatch?.[1] || '',
-    blackName: blackMatch?.[1] || '',
+    whiteName: whiteMatch?.[1] || 'White',
+    blackName: blackMatch?.[1] || 'Black',
+    event: eventMatch?.[1],
+    date: dateMatch?.[1],
   };
 }
 
@@ -102,40 +108,13 @@ export interface AnalysisCallbacks {
   onError: (error: string) => void;
 }
 
-// Lichess cloud eval (no auth needed for basic use)
-async function fetchLichessEval(fen: string): Promise<PositionEval | null> {
-  try {
-    const res = await fetch(
-      `https://lichess.org/api/cloud-eval?fen=${encodeURIComponent(fen)}&multiPv=1`
-    );
-    if (!res.ok) return null;
-    const data = await res.json();
-    if (!data.pvs?.length) return null;
-
-    const pv = data.pvs[0];
-    let evalCp = 0;
-    if (pv.cp !== undefined) evalCp = pv.cp;
-    else if (pv.mate !== undefined) evalCp = pv.mate > 0 ? 30000 - pv.mate * 2 : -30000 - Math.abs(pv.mate) * 2;
-
-    return {
-      fen,
-      eval: evalCp,
-      bestMove: pv.moves?.split(' ')[0] ?? '',
-      pv: pv.moves?.split(' ') ?? [],
-      depth: data.depth ?? 20,
-    };
-  } catch {
-    return null;
-  }
-}
-
 function analyzePositionWorker(
   worker: Worker,
   fen: string,
   depth: number
 ): Promise<PositionEval> {
   return new Promise((resolve, reject) => {
-    const timeout = setTimeout(() => reject(new Error('Timeout')), 10000);
+    const timeout = setTimeout(() => reject(new Error('Timeout')), 15000);
     let lastEval = 0;
     let lastPV: string[] = [];
 
@@ -199,9 +178,7 @@ export async function analyzeGame(
   callbacks: AnalysisCallbacks
 ): Promise<void> {
   const evals: PositionEval[] = new Array(positions.length);
-  const rateLimitMs = 1100; // 1 req/sec for anonymous Lichess API
 
-  // Detect terminal positions
   const terminal = new Set<number>();
   for (let i = 0; i < positions.length; i++) {
     const b = new Chess();
@@ -209,64 +186,44 @@ export async function analyzeGame(
     if (b.isGameOver()) terminal.add(i);
   }
 
-  // Create local workers for fallback
   const workers = createWorkerPool();
   await Promise.all(workers.map(w => waitForReady(w)));
 
   let completed = 0;
   const total = positions.length;
 
-  // Phase 1: Lichess cloud (rate limited)
-  const lichessResults = new Map<number, PositionEval>();
-  const needsLocal: number[] = [];
+  // Analyze positions in parallel batches
+  const indices = Array.from({ length: positions.length }, (_, i) => i);
+  let nextIndex = 0;
 
-  for (let i = 0; i < positions.length; i++) {
-    if (terminal.has(i)) continue;
-    callbacks.onProgress(completed, total, i === 0 ? 'Starting position' : sanMoves[i - 1]);
+  const processNext = async (workerIdx: number) => {
+    while (nextIndex < indices.length) {
+      const i = indices[nextIndex++];
 
-    const result = await fetchLichessEval(positions[i]);
-    if (result) {
-      lichessResults.set(i, result);
-      completed++;
-      callbacks.onPositionEval(i, result);
-    } else {
-      needsLocal.push(i);
-    }
+      callbacks.onProgress(completed, total, i === 0 ? 'Starting position' : sanMoves[i - 1]);
 
-    if (i < positions.length - 1) {
-      await new Promise(r => setTimeout(r, rateLimitMs));
-    }
-  }
-
-  // Phase 2: Local WASM for unknown positions
-  if (needsLocal.length > 0) {
-    let localIdx = 0;
-    const processLocal = async (workerIdx: number) => {
-      while (localIdx < needsLocal.length) {
-        const i = needsLocal[localIdx++];
-        try {
-          const result = await analyzePositionWorker(workers[workerIdx], positions[i], depth);
-          evals[i] = result;
-        } catch {
-          const fallback = evals[Math.max(0, i - 1)] ?? { fen: positions[i], eval: 0, bestMove: '', pv: [], depth };
-          evals[i] = { ...fallback, fen: positions[i] };
-        }
+      if (terminal.has(i)) {
+        const fallback = evals[Math.max(0, i - 1)] ?? { fen: positions[i], eval: 0, bestMove: '', pv: [], depth };
+        evals[i] = { ...fallback, fen: positions[i] };
         completed++;
-        callbacks.onProgress(completed, total, sanMoves[i - 1] ?? '');
         callbacks.onPositionEval(i, evals[i]);
+        continue;
       }
-    };
-    await Promise.all(workers.map((_, idx) => processLocal(idx)));
-  }
 
-  // Merge
-  lichessResults.forEach((result, i) => { evals[i] = result; });
+      try {
+        evals[i] = await analyzePositionWorker(workers[workerIdx], positions[i], depth);
+      } catch {
+        const fallback = evals[Math.max(0, i - 1)] ?? { fen: positions[i], eval: 0, bestMove: '', pv: [], depth };
+        evals[i] = { ...fallback, fen: positions[i] };
+      }
 
-  terminal.forEach((i) => {
-    const fallback = evals[Math.max(0, i - 1)] ?? { fen: positions[i], eval: 0, bestMove: '', pv: [], depth };
-    evals[i] = { ...fallback, fen: positions[i] };
-  });
+      completed++;
+      callbacks.onProgress(completed, total, i === 0 ? 'Starting position' : sanMoves[i - 1]);
+      callbacks.onPositionEval(i, evals[i]);
+    }
+  };
 
+  await Promise.all(workers.map((_, idx) => processNext(idx)));
   workers.forEach(w => w.terminate());
 
   try {

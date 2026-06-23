@@ -1,201 +1,86 @@
 'use client';
-import { useState, useRef, useCallback, useEffect } from 'react';
-import PgnUpload from '@/components/PgnUpload';
-import ChessBoard from '@/components/ChessBoard';
-import MoveList from '@/components/MoveList';
-import EvalGraph from '@/components/EvalGraph';
-import AnalysisProgress from '@/components/AnalysisProgress';
-import { parsePgnToPositions, analyzeGame } from '@/engine/analyzer';
-import { saveGame, getAllGames, deleteGame } from '@/lib/db';
-import { AnalyzedGame, PositionEval } from '@/types';
+import Link from 'next/link';
 
 export default function Home() {
-  const [pgn, setPgn] = useState('');
-  const [moves, setMoves] = useState<AnalyzedGame['moves']>([]);
-  const [evals, setEvals] = useState<PositionEval[]>([]);
-  const [currentMoveIndex, setCurrentMoveIndex] = useState(0);
-  const [progress, setProgress] = useState<{current: number; total: number; status: 'idle'|'analyzing'|'done'|'error'; currentMove: string}>({ current: 0, total: 0, status: 'idle', currentMove: '' });
-  const [whiteACPL, setWhiteACPL] = useState(0);
-  const [blackACPL, setBlackACPL] = useState(0);
-  const [savedGames, setSavedGames] = useState<AnalyzedGame[]>([]);
-  const workerRef = useRef<Worker | null>(null);
-
-  useEffect(() => {
-    getAllGames().then(setSavedGames).catch(() => {});
-  }, []);
-
-  const initWorker = useCallback(() => {
-    if (workerRef.current) return workerRef.current;
-    const worker = new Worker('/stockfish-worker.js');
-    worker.postMessage({ type: 'init' });
-    workerRef.current = worker;
-    return worker;
-  }, []);
-
-  const handlePgnSubmit = useCallback(async (pgnText: string) => {
-    setPgn(pgnText);
-    setMoves([]);
-    setEvals([]);
-    setCurrentMoveIndex(0);
-    setProgress({ current: 0, total: 0, status: 'analyzing', currentMove: '' });
-
-    try {
-      const parsed = parsePgnToPositions(pgnText);
-      if (parsed.positions.length < 2) {
-        setProgress({ current: 0, total: 0, status: 'error', currentMove: 'Could not parse PGN' });
-        return;
-      }
-      const worker = initWorker();
-      await new Promise<void>((resolve) => {
-        const handler = (e: MessageEvent) => {
-          if (e.data.type === 'ready') { worker.removeEventListener('message', handler); resolve(); }
-        };
-        worker.addEventListener('message', handler);
-        setTimeout(() => { worker.removeEventListener('message', handler); resolve(); }, 5000);
-      });
-      const localEvals: PositionEval[] = [];
-      await analyzeGame(parsed.positions, parsed.sanMoves, parsed.moves, worker, 14, {
-        onProgress: (current, total, move) => setProgress({ current, total, status: 'analyzing', currentMove: move }),
-        onPositionEval: (index, eval_) => { localEvals[index] = eval_; setEvals([...localEvals]); },
-        onComplete: (analyzedMoves, wACPL, bACPL) => {
-          setMoves(analyzedMoves);
-          setWhiteACPL(wACPL);
-          setBlackACPL(bACPL);
-          setProgress((p) => ({ ...p, status: 'done' }));
-          const game: AnalyzedGame = {
-            id: Date.now().toString(),
-            whiteName: parsed.whiteName, blackName: parsed.blackName,
-            result: parsed.result, moves: analyzedMoves,
-            whiteACPL: wACPL, blackACPL: bACPL,
-            totalMoves: parsed.sanMoves.length, analyzedAt: Date.now(),
-          };
-          saveGame(game).then(() => getAllGames().then(setSavedGames).catch(() => {}));
-        },
-        onError: () => {},
-      });
-    } catch {
-      setProgress({ current: 0, total: 0, status: 'error', currentMove: 'Analysis failed' });
-    }
-  }, [initWorker]);
-
-  const whiteBlunders = moves.filter(m => m.white?.classification === 'blunder').length;
-  const blackBlunders = moves.filter(m => m.black?.classification === 'blunder').length;
-  const whiteMistakes = moves.filter(m => m.white?.classification === 'mistake').length;
-  const blackMistakes = moves.filter(m => m.black?.classification === 'mistake').length;
-  const whiteInacc = moves.filter(m => m.white?.classification === 'inaccuracy').length;
-  const blackInacc = moves.filter(m => m.black?.classification === 'inaccuracy').length;
-
   return (
-    <main className="min-h-screen" style={{ background: 'var(--bg)' }}>
-      <header style={{ borderBottom: '1px solid var(--border)', background: 'var(--bg)' }}>
-        <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: 'var(--gold)', color: 'var(--bg)' }}>
-              <span className="text-sm font-bold" style={{ fontFamily: 'Playfair Display, serif' }}>♚</span>
+    <main className="min-h-screen bg-[#0a0a0a]">
+      {/* Hero */}
+      <section className="relative overflow-hidden">
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_50%_0%,rgba(201,168,76,0.08)_0%,transparent_60%)]" />
+        <div className="max-w-5xl mx-auto px-6 pt-20 pb-24 relative">
+          <div className="text-center fade-in">
+            <div className="gold-line w-16 mx-auto mb-8" />
+            <div className="flex items-center justify-center gap-3 mb-6">
+              <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-[var(--gold)] text-[#0a0a0a]">
+                <span className="text-2xl font-bold font-[Playfair_Display]">♚</span>
+              </div>
             </div>
-            <span className="text-lg font-semibold tracking-tight" style={{ color: 'var(--white)', fontFamily: 'Playfair Display, serif' }}>
-              GoatedChess
-            </span>
+            <h1 className="text-6xl md:text-7xl font-bold mb-4 tracking-tight text-[var(--cream)]">GoatedChess</h1>
+            <p className="text-xl mb-3 font-[Playfair_Display] text-[var(--cream-dim)]">A chess engine under development</p>
+            <p className="text-base max-w-lg mx-auto mb-10 text-[var(--cream-muted)]">
+              Built from scratch in C++ with bitboards, magic attacks, tapered evaluation, and advanced search. Currently aiming for 2300+ Elo.
+            </p>
+            <Link href="/analyse" className="btn inline-block text-base px-8 py-3">Analyze a Game</Link>
           </div>
         </div>
-      </header>
+      </section>
 
-      <div className="max-w-6xl mx-auto px-6 py-10">
-        {!pgn && (
-          <div className="fade-in">
-            <div className="text-center mb-12">
-              <div className="gold-line w-16 mx-auto mb-6" />
-              <h1 className="text-5xl font-bold mb-3 tracking-tight" style={{ color: 'var(--white)' }}>
-                Analyze Your Games
-              </h1>
-              <p className="text-base" style={{ color: 'var(--cream-dim)' }}>
-                Upload a PGN. Get instant Stockfish analysis.
-              </p>
-            </div>
-            <PgnUpload onPgnSubmit={handlePgnSubmit} />
+      {/* Engine */}
+      <section className="border-t border-[#222]">
+        <div className="max-w-5xl mx-auto px-6 py-16">
+          <div className="gold-line w-12 mb-8" />
+          <h2 className="text-3xl font-bold mb-10 text-[var(--cream)]">The Engine</h2>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 stagger">
+            {[
+              { icon: '⚔', title: 'Search', desc: 'Alpha-Beta with PVS, Null Move Pruning, Late Move Reductions, Futility Pruning, Singular Extensions, and Check Extensions. 3D History Heuristic for move ordering.' },
+              { icon: '♜', title: 'Evaluation', desc: 'Tapered MG/EG with Ethereal Piece-Square Tables. Bishop pair, passed pawns with king proximity, knight outposts, rook evaluation, mobility, king safety, and pawn storms.' },
+              { icon: '⚡', title: 'Infrastructure', desc: '64-bit Zobrist Transposition Table with generation counters, magic bitboards for attack generation, opening book with 100+ entries, and dynamic time management.' },
+            ].map((item) => (
+              <div key={item.title} className="card p-6">
+                <div className="text-2xl mb-3 text-[var(--gold)]">{item.icon}</div>
+                <h3 className="text-lg font-semibold mb-2 text-[var(--cream)]">{item.title}</h3>
+                <p className="text-sm leading-relaxed text-[var(--cream-dim)]">{item.desc}</p>
+              </div>
+            ))}
           </div>
-        )}
+        </div>
+      </section>
 
-        {progress.status !== 'idle' && (
-          <div className="mb-6 fade-in">
-            <AnalysisProgress {...progress} />
-          </div>
-        )}
-
-        {moves.length > 0 && (
-          <div className="fade-in">
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6 stagger">
-              <div className="stat">
-                <div className="stat-value">{whiteACPL}</div>
-                <div className="stat-label">White ACPL</div>
-              </div>
-              <div className="stat">
-                <div className="stat-value">{blackACPL}</div>
-                <div className="stat-label">Black ACPL</div>
-              </div>
-              <div className="stat">
-                <div className="stat-value" style={{ color: 'var(--red)' }}>{whiteBlunders + blackBlunders}</div>
-                <div className="stat-label">Blunders</div>
-              </div>
-              <div className="stat">
-                <div className="stat-value" style={{ color: 'var(--amber)' }}>{whiteMistakes + blackMistakes}</div>
-                <div className="stat-label">Mistakes</div>
-              </div>
-              <div className="stat">
-                <div className="stat-value" style={{ color: 'var(--cream-dim)' }}>{whiteInacc + blackInacc}</div>
-                <div className="stat-label">Inaccuracies</div>
-              </div>
+      {/* Analyzer */}
+      <section className="border-t border-[#222] bg-[#111]">
+        <div className="max-w-5xl mx-auto px-6 py-16">
+          <div className="gold-line w-12 mb-8" />
+          <h2 className="text-3xl font-bold mb-4 text-[var(--cream)]">The Analyzer</h2>
+          <p className="text-base max-w-2xl mb-10 text-[var(--cream-dim)]">
+            This tool uses Stockfish running directly in your browser via WebAssembly. Upload any PGN and get instant analysis with move classifications, evaluation graphs, and accuracy metrics.
+          </p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 stagger">
+            <div className="card p-6">
+              <h3 className="text-lg font-semibold mb-3 text-[var(--cream)]">How it works</h3>
+              <ul className="space-y-2 text-sm text-[var(--cream-dim)]">
+                {['PGN is parsed into individual positions', '16 Stockfish workers analyze in parallel', 'Each position evaluated at depth 14', 'Moves classified by win% delta (Lichess algorithm)'].map((t, i) => (
+                  <li key={i} className="flex gap-2"><span className="text-[var(--gold)]">→</span>{t}</li>
+                ))}
+              </ul>
             </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-              <div className="lg:col-span-2 space-y-4">
-                <div className="card p-4">
-                  <ChessBoard pgn={pgn} currentMoveIndex={currentMoveIndex} />
-                </div>
-                <div className="card p-4">
-                  <EvalGraph evals={evals} currentMoveIndex={currentMoveIndex} onMoveClick={setCurrentMoveIndex} />
-                </div>
-              </div>
-              <div className="card p-4 max-h-[700px] overflow-y-auto">
-                <MoveList moves={moves} currentMoveIndex={currentMoveIndex} onMoveClick={setCurrentMoveIndex} />
-              </div>
-            </div>
-
-            <div className="mt-8 text-center">
-              <button onClick={() => { setPgn(''); setMoves([]); setEvals([]); setCurrentMoveIndex(0); setProgress({ current: 0, total: 0, status: 'idle', currentMove: '' }); }} className="btn-outline">
-                Analyze Another Game
-              </button>
+            <div className="card p-6">
+              <h3 className="text-lg font-semibold mb-3 text-[var(--cream)]">Features</h3>
+              <ul className="space-y-2 text-sm text-[var(--cream-dim)]">
+                {['Best, Excellent, Good, Inaccuracy, Mistake, Blunder', 'Evaluation graph with per-move eval', 'ACPL for both sides', 'Save and revisit analyzed games'].map((t, i) => (
+                  <li key={i} className="flex gap-2"><span className="text-[var(--gold)]">→</span>{t}</li>
+                ))}
+              </ul>
             </div>
           </div>
-        )}
+        </div>
+      </section>
 
-        {savedGames.length > 0 && !pgn && (
-          <div className="mt-12 fade-in">
-            <div className="gold-line w-12 mb-6" />
-            <h2 className="text-2xl font-bold mb-4" style={{ color: 'var(--white)' }}>Saved Games</h2>
-            <div className="space-y-2">
-              {savedGames.map((game) => (
-                <div key={game.id} className="card p-4 flex justify-between items-center" style={{ transition: 'border-color 0.2s' }}>
-                  <div>
-                    <span className="font-semibold" style={{ color: 'var(--white)' }}>{game.whiteName || 'White'}</span>
-                    <span style={{ color: 'var(--cream-muted)' }}> vs </span>
-                    <span className="font-semibold" style={{ color: 'var(--white)' }}>{game.blackName || 'Black'}</span>
-                    <span className="ml-2 text-sm" style={{ color: 'var(--cream-muted)' }}>({game.result})</span>
-                  </div>
-                  <div className="flex gap-3 items-center">
-                    <span className="mono text-xs" style={{ color: 'var(--cream-muted)' }}>
-                      ACPL {game.whiteACPL}/{game.blackACPL}
-                    </span>
-                    <button onClick={() => deleteGame(game.id).then(() => getAllGames().then(setSavedGames).catch(() => {}))} className="text-xs hover:opacity-70 transition-opacity" style={{ color: 'var(--cream-muted)' }}>
-                      Delete
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
+      <footer className="border-t border-[#222] py-8">
+        <div className="max-w-5xl mx-auto px-6 flex justify-between items-center">
+          <span className="text-sm text-[var(--cream-muted)]">GoatedChess Engine — Under Development</span>
+          <span className="text-sm text-[var(--cream-muted)]">Powered by Stockfish</span>
+        </div>
+      </footer>
     </main>
   );
 }
