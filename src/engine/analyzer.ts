@@ -44,7 +44,7 @@ export function buildAnalysisResult(evals: PositionEval[], sanMoves: string[], u
     const isBlack = i % 2 === 1;
     const evalBefore = evals[i]?.eval ?? 0;
     const evalAfter = evals[i + 1]?.eval ?? 0;
-    const classification = classifyMove(evalBefore, evalAfter, isBlack, uciMoves[i], evals[i]?.bestMove);
+    const classification = classifyMove(evalBefore, evalAfter, isBlack, (uciMoves[i] || '').trim(), (evals[i]?.bestMove || '').trim());
     const eb = isBlack ? -evalBefore : evalBefore;
     const ea = isBlack ? -evalAfter : evalAfter;
     const evalLoss = Math.max(0, eb - ea);
@@ -92,7 +92,7 @@ function parseStockfishOutput(lines: string[]): { eval: number; bestMove: string
     }
     // Parse "bestmove X"
     if (line.indexOf('bestmove') === 0) {
-      bestMove = line.split(' ')[1] || '';
+      bestMove = (line.split(' ')[1] || '').trim();
     }
   }
 
