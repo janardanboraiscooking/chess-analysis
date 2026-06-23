@@ -1,4 +1,5 @@
-// Stockfish Web Worker — loads from CDN
+// Stockfish Web Worker — loads from local /stockfish/stockfish.js
+
 var _realPostMessage = self.postMessage.bind(self);
 
 self.postMessage = function(msg) {
@@ -15,7 +16,8 @@ self.postMessage = function(msg) {
   }
 };
 
-importScripts('https://cdnjs.cloudflare.com/ajax/libs/stockfish.js/10.0.2/stockfish.js');
+// Load stockfish from local public folder (not CDN)
+importScripts('/stockfish/stockfish.js');
 
 var _sfHandler = self.onmessage;
 

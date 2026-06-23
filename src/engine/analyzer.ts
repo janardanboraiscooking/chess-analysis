@@ -152,7 +152,7 @@ function analyzePositionWorker(
   });
 }
 
-const NUM_WORKERS = 8;
+const NUM_WORKERS = 4;
 const DISPLAY_DELAY_MS = 310;
 
 function createWorkerPool(): Worker[] {

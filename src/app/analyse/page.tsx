@@ -48,7 +48,7 @@ export default function AnalysePage() {
         setTimeout(() => { worker.removeEventListener('message', handler); resolve(); }, 10000);
       });
       const le: PositionEval[] = [];
-      await analyzeGame(parsed.positions, parsed.sanMoves, parsed.moves, worker, 14, {
+      await analyzeGame(parsed.positions, parsed.sanMoves, parsed.moves, worker, 12, {
         onProgress: (c, t, m) => setProgress({ current: c, total: t, status: 'analyzing', currentMove: m }),
         onPositionEval: (i, e) => { le[i] = e; setEvals([...le]); },
         onComplete: (am, wA, bA) => {
