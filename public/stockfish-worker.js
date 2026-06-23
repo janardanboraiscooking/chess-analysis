@@ -1,8 +1,10 @@
 // Stockfish Web Worker — loads from local /stockfish/stockfish.js
 
 var _realPostMessage = self.postMessage.bind(self);
+var _msgCount = 0;
 
 self.postMessage = function(msg) {
+  _msgCount++;
   if (typeof msg === 'string') {
     if (msg === 'uciok') {
       _realPostMessage({ type: 'ready' });
@@ -16,8 +18,12 @@ self.postMessage = function(msg) {
   }
 };
 
-// Load stockfish from local public folder (not CDN)
-importScripts('/stockfish/stockfish.js');
+try {
+  importScripts('/stockfish/stockfish.js');
+  _realPostMessage({ type: 'debug', payload: 'stockfish.js loaded successfully' });
+} catch (err) {
+  _realPostMessage({ type: 'error', payload: 'Failed to load stockfish.js: ' + err.message });
+}
 
 var _sfHandler = self.onmessage;
 
