@@ -23,10 +23,11 @@ export function classifyMove(
   const ea = isBlackMove ? -evalAfter : evalAfter;
   const evalLoss = eb - ea;
 
-  // Wide thresholds for depth 10 (Lichess uses depth 20+)
-  if (evalLoss <= 100) return 'excellent';
-  if (evalLoss <= 300) return 'good';
-  if (evalLoss <= 600) return 'inaccuracy';
-  if (evalLoss <= 1200) return 'mistake';
+  // Very wide thresholds for depth 10 — evals swing 500-800cp in tactics
+  // Only flag truly terrible moves as blunders (>2 pawns lost)
+  if (evalLoss <= 200) return 'excellent';
+  if (evalLoss <= 500) return 'good';
+  if (evalLoss <= 1000) return 'inaccuracy';
+  if (evalLoss <= 2000) return 'mistake';
   return 'blunder';
 }
