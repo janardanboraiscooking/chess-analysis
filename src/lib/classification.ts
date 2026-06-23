@@ -23,10 +23,10 @@ export function classifyMove(
   const ea = isBlackMove ? -evalAfter : evalAfter;
   const evalLoss = eb - ea;
 
-  // Wide thresholds for depth 10 (evals are noisy in tactical positions)
-  if (evalLoss <= 50) return 'excellent';
-  if (evalLoss <= 200) return 'good';
-  if (evalLoss <= 500) return 'inaccuracy';
-  if (evalLoss <= 1000) return 'mistake';
+  // Wide thresholds for depth 10 (Lichess uses depth 20+)
+  if (evalLoss <= 100) return 'excellent';
+  if (evalLoss <= 300) return 'good';
+  if (evalLoss <= 600) return 'inaccuracy';
+  if (evalLoss <= 1200) return 'mistake';
   return 'blunder';
 }
