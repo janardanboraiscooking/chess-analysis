@@ -19,7 +19,14 @@ export function parsePgnToPositions(pgn: string): PgnParseResult {
   const chess = new Chess();
   try {
     chess.loadPgn(pgn);
-  } catch {}
+  } catch {
+    // Try stripping headers and loading just moves
+    try {
+      const movesOnly = pgn.replace(/\[.*?\]/g, '').replace(/\{.*?\}/g, '').trim();
+      chess.reset();
+      chess.loadPgn(movesOnly);
+    } catch {}
+  }
 
   const history = chess.history({ verbose: true });
   const positions: string[] = [];

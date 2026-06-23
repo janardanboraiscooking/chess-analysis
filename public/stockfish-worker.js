@@ -1,11 +1,14 @@
-// Stockfish Web Worker — loaded from public folder
-// Queues UCI commands until WASM module is ready
+// Stockfish Web Worker — uses CDN-hosted stockfish.js (asm.js, no WASM)
 
 var queue = [];
 var ready = false;
-var origPostMessage = self.postMessage;
 
-// Intercept postMessage to catch stockfish.wasm.js output (raw UCI strings)
+// Load stockfish.js from CDN
+importScripts('https://cdnjs.cloudflare.com/ajax/libs/stockfish.js/10.0.2/stockfish.js');
+
+// stockfish.js sets self.onmessage for UCI protocol
+// We need to intercept its output (raw strings via postMessage)
+var origPostMessage = self.postMessage;
 self.postMessage = function(msg) {
   if (typeof msg === 'string') {
     if (msg === 'uciok') {
@@ -20,42 +23,22 @@ self.postMessage = function(msg) {
   }
 };
 
-// Save our onmessage, let stockfish.wasm.js overwrite it, then restore
-var savedOnMessage = self.onmessage;
-
-importScripts('/stockfish/stockfish.wasm.js');
-
-// stockfish.wasm.js set its own onmessage on self
-// We need to intercept it: queue commands, forward to Module.ccall
-var stockfishOnMessage = self.onmessage;
+// Override onmessage to handle our protocol
+// stockfish.js already set its own onmessage for raw UCI strings
+// We need to route our structured messages to it
+var stockfishHandler = self.onmessage;
 
 self.onmessage = function(e) {
   var data = e.data;
 
   if (data.type === 'command') {
-    if (typeof Module !== 'undefined' && Module.ccall) {
-      Module.ccall("uci_command", "number", ["string"], [data.payload]);
+    // Forward UCI command to stockfish.js
+    if (stockfishHandler) {
+      stockfishHandler({ data: data.payload });
     } else {
       queue.push(data.payload);
-    }
-  } else if (data.type === 'init') {
-    // Check if Module is ready
-    if (typeof Module !== 'undefined' && Module.ccall) {
-      // Flush queued commands
-      for (var i = 0; i < queue.length; i++) {
-        Module.ccall("uci_command", "number", ["string"], [queue[i]]);
-      }
-      queue = [];
-      ready = true;
     }
   }
 };
 
-// Try to flush immediately in case Module is already ready
-if (typeof Module !== 'undefined' && Module.ccall) {
-  ready = true;
-  for (var i = 0; i < queue.length; i++) {
-    Module.ccall("uci_command", "number", ["string"], [queue[i]]);
-  }
-  queue = [];
-}
+ready = true;
