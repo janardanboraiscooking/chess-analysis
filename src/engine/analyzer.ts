@@ -73,7 +73,7 @@ export function buildAnalysisResult(
     const evalAfter = evals[i + 1]?.eval ?? 0;
     const playerUci = uciMoves[i] ?? '';
     const bestMove = evals[i]?.bestMove ?? '';
-    const classification = classifyMove(evalBefore, evalAfter, isBlack, playerUci, bestMove);
+    const classification = classifyMove(evalBefore, evalAfter, isBlack);
 
     const eb = isBlack ? -evalBefore : evalBefore;
     const ea = isBlack ? -evalAfter : evalAfter;
@@ -145,7 +145,7 @@ function analyzePositionWorker(
 }
 
 const NUM_WORKERS = 32;
-const DISPLAY_DELAY_MS = Math.ceil(1000 / NUM_WORKERS); // ~31ms between each display update
+const DISPLAY_DELAY_MS = 310; // 310ms between each display update
 
 function createWorkerPool(): Worker[] {
   const workers: Worker[] = [];
