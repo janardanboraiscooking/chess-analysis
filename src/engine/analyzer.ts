@@ -102,7 +102,58 @@ export interface AnalysisCallbacks {
   onError: (error: string) => void;
 }
 
-function analyzePosition(
+/**
+ * Fetch eval from Lichess cloud eval API.
+ * Returns eval in centipawns from white's perspective, or null if not available.
+ */
+async function fetchLichessEval(fen: string): Promise<{ eval: number; bestMove: string } | null> {
+  try {
+    const url = `https://lichess.org/api/cloud-eval?fen=${encodeURIComponent(fen)}&multiPv=1`;
+    const res = await fetch(url);
+    if (!res.ok) return null;
+    const data = await res.json();
+
+    if (data.pvs && data.pvs.length > 0) {
+      const pv = data.pvs[0];
+      let evalCp = 0;
+
+      if (pv.cp !== undefined) {
+        // Centipawn eval — Lichess returns from white's perspective
+        evalCp = pv.cp;
+      } else if (pv.mate !== undefined) {
+        // Mate eval — convert to centipawns
+        evalCp = pv.mate > 0 ? 30000 - pv.mate * 2 : -30000 - Math.abs(pv.mate) * 2;
+      }
+
+      return {
+        eval: evalCp,
+        bestMove: pv.moves?.split(' ')[0] ?? '',
+      };
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Analyze a single position — try Lichess cloud first, fall back to local Stockfish.
+ */
+async function analyzePositionLichess(fen: string): Promise<PositionEval> {
+  const cloud = await fetchLichessEval(fen);
+  if (cloud) {
+    return {
+      fen,
+      eval: cloud.eval,
+      bestMove: cloud.bestMove,
+      pv: [],
+      depth: 20,
+    };
+  }
+  throw new Error('Not in Lichess cloud');
+}
+
+function analyzePositionLocal(
   worker: Worker,
   fen: string,
   depth: number
@@ -115,15 +166,12 @@ function analyzePosition(
     const handler = (e: MessageEvent) => {
       if (e.data.type === 'info') {
         const line = e.data.payload;
-        // Only update on full-depth info lines (have seldepth or depth N/20)
-        // Handle both score cp and score mate
         const cpMatch = line.match(/score cp (-?\d+)/);
         const mateMatch = line.match(/score mate (-?\d+)/);
         if (cpMatch) {
           lastEval = parseInt(cpMatch[1]);
         } else if (mateMatch) {
           const mateIn = parseInt(mateMatch[1]);
-          // Convert mate to centipawns: large value preserving sign
           lastEval = mateIn > 0 ? 30000 - mateIn * 2 : -30000 - mateIn * 2;
         }
         const pvMatch = line.match(/pv (.+)/);
@@ -181,7 +229,7 @@ export async function analyzeGame(
 ): Promise<void> {
   const evals: PositionEval[] = new Array(positions.length);
 
-  // Identify terminal positions (checkmate/stalemate)
+  // Identify terminal positions
   const terminal = new Set<number>();
   for (let i = 0; i < positions.length; i++) {
     const testBoard = new Chess();
@@ -191,22 +239,19 @@ export async function analyzeGame(
     }
   }
 
-  // Create worker pool and wait for all ready
+  // Create worker pool for local fallback
   const workers = createWorkerPool();
   await Promise.all(workers.map(w => waitForReady(w)));
 
   let completed = 0;
   const total = positions.length;
 
-  // Process positions in parallel batches
-  const indices = Array.from({ length: positions.length }, (_, i) => i);
-
   await new Promise<void>(async (resolveAll) => {
     let nextIndex = 0;
 
     const processNext = async (workerIdx: number) => {
-      while (nextIndex < indices.length) {
-        const i = indices[nextIndex++];
+      while (nextIndex < positions.length) {
+        const i = nextIndex++;
 
         callbacks.onProgress(completed, total, i === 0 ? 'Starting position' : sanMoves[i - 1]);
 
@@ -218,12 +263,19 @@ export async function analyzeGame(
           continue;
         }
 
+        // Try Lichess cloud first (instant, accurate)
         try {
-          const result = await analyzePosition(workers[workerIdx], positions[i], depth);
+          const result = await analyzePositionLichess(positions[i]);
           evals[i] = result;
         } catch {
-          const fallback = evals[Math.max(0, i - 1)] ?? { fen: positions[i], eval: 0, bestMove: '', pv: [], depth };
-          evals[i] = { ...fallback, fen: positions[i] };
+          // Fall back to local Stockfish
+          try {
+            const result = await analyzePositionLocal(workers[workerIdx], positions[i], depth);
+            evals[i] = result;
+          } catch {
+            const fallback = evals[Math.max(0, i - 1)] ?? { fen: positions[i], eval: 0, bestMove: '', pv: [], depth };
+            evals[i] = { ...fallback, fen: positions[i] };
+          }
         }
 
         completed++;
@@ -232,13 +284,9 @@ export async function analyzeGame(
       }
     };
 
-    // Start all workers
     await Promise.all(workers.map((_, idx) => processNext(idx)));
-
-    // Terminate workers
     workers.forEach(w => w.terminate());
 
-    // Build results
     try {
       const analyzedMoves = buildAnalysisResult(evals, sanMoves, uciMoves);
       const allEvalLosses = analyzedMoves.flatMap(m => {
