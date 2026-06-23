@@ -9,11 +9,20 @@ export function classifyMove(
   evalAfter: number,
   isBlackMove: boolean,
   playerMove?: string,
-  bestMove?: string
+  bestMove?: string,
+  pv?: string[]
 ): MoveClassification {
   // If player played the engine's best move, it's best
-  if (playerMove && bestMove && playerMove === bestMove) {
-    return 'best';
+  if (playerMove && bestMove) {
+    const pm = playerMove.trim().toLowerCase();
+    const bm = bestMove.trim().toLowerCase();
+    if (pm === bm) return 'best';
+  }
+  // Also check PV first move
+  if (playerMove && pv && pv.length > 0) {
+    const pm = playerMove.trim().toLowerCase();
+    const pvFirst = pv[0].trim().toLowerCase();
+    if (pm === pvFirst) return 'best';
   }
 
   const povBefore = isBlackMove ? -evalBefore : evalBefore;

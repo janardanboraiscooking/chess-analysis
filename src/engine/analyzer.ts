@@ -44,7 +44,7 @@ export function buildAnalysisResult(evals: PositionEval[], sanMoves: string[], u
     const isBlack = i % 2 === 1;
     const evalBefore = evals[i]?.eval ?? 0;
     const evalAfter = evals[i + 1]?.eval ?? 0;
-    const classification = classifyMove(evalBefore, evalAfter, isBlack, (uciMoves[i] || '').trim(), (evals[i]?.bestMove || '').trim());
+    const classification = classifyMove(evalBefore, evalAfter, isBlack, (uciMoves[i] || '').trim(), (evals[i]?.bestMove || '').trim(), evals[i]?.pv);
     const eb = isBlack ? -evalBefore : evalBefore;
     const ea = isBlack ? -evalAfter : evalAfter;
     const evalLoss = Math.max(0, eb - ea);
