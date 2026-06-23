@@ -144,17 +144,28 @@ function analyzePositionWorker(
   });
 }
 
-const NUM_WORKERS = 32;
+const NUM_WORKERS = 8;
 const DISPLAY_DELAY_MS = 310; // 310ms between each display update
 
 function createWorkerPool(): Worker[] {
   const workers: Worker[] = [];
   for (let i = 0; i < NUM_WORKERS; i++) {
     const w = new Worker('/stockfish-worker.js');
-    w.postMessage({ type: 'init' });
     workers.push(w);
   }
   return workers;
+}
+
+async function initWorkers(workers: Worker[]): Promise<void> {
+  // Stagger initialization to avoid overwhelming CDN
+  for (let i = 0; i < workers.length; i++) {
+    workers[i].postMessage({ type: 'init' });
+    if (i < workers.length - 1) {
+      await new Promise(r => setTimeout(r, 50));
+    }
+  }
+  // Wait for all to be ready
+  await Promise.all(workers.map(w => waitForReady(w, 10000)));
 }
 
 function waitForReady(worker: Worker, timeoutMs = 5000): Promise<void> {
@@ -188,7 +199,7 @@ export async function analyzeGame(
   }
 
   const workers = createWorkerPool();
-  await Promise.all(workers.map(w => waitForReady(w)));
+  await initWorkers(workers);
 
   let completed = 0;
   const total = positions.length;

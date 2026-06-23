@@ -1,6 +1,6 @@
-// Stockfish Web Worker — WASM via CDN for speed
-
+// Stockfish Web Worker — loads from CDN
 var _realPostMessage = self.postMessage.bind(self);
+
 self.postMessage = function(msg) {
   if (typeof msg === 'string') {
     if (msg === 'uciok') {
@@ -15,19 +15,16 @@ self.postMessage = function(msg) {
   }
 };
 
-// Load asm.js stockfish (reliable, fast enough at low depth)
 importScripts('https://cdnjs.cloudflare.com/ajax/libs/stockfish.js/10.0.2/stockfish.js');
 
-var _stockfishHandler = self.onmessage;
+var _sfHandler = self.onmessage;
 
 self.onmessage = function(e) {
-  var data = e.data;
-  if (data.type === 'command' && _stockfishHandler) {
-    _stockfishHandler({ data: data.payload });
+  if (e.data.type === 'command' && _sfHandler) {
+    _sfHandler({ data: e.data.payload });
   }
 };
 
-// Auto-initialize
-if (_stockfishHandler) {
-  _stockfishHandler({ data: 'uci' });
+if (_sfHandler) {
+  _sfHandler({ data: 'uci' });
 }
