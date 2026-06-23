@@ -14,7 +14,7 @@ export default function Home() {
   const [moves, setMoves] = useState<AnalyzedGame['moves']>([]);
   const [evals, setEvals] = useState<PositionEval[]>([]);
   const [currentMoveIndex, setCurrentMoveIndex] = useState(0);
-  const [progress, setProgress] = useState({ current: 0, total: 0, status: 'idle' as const, currentMove: '' });
+  const [progress, setProgress] = useState<{current: number; total: number; status: 'idle'|'analyzing'|'done'|'error'; currentMove: string}>({ current: 0, total: 0, status: 'idle', currentMove: '' });
   const [whiteACPL, setWhiteACPL] = useState(0);
   const [blackACPL, setBlackACPL] = useState(0);
   const [savedGames, setSavedGames] = useState<AnalyzedGame[]>([]);
