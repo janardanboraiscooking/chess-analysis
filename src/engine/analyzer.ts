@@ -150,65 +150,25 @@ async function fetchLichessEval(fen: string): Promise<PositionEval | null> {
   }
 }
 
-function analyzePositionLocal(
-  worker: Worker,
-  fen: string,
-  depth: number
-): Promise<PositionEval> {
-  return new Promise((resolve, reject) => {
-    const timeout = setTimeout(() => reject(new Error('Timeout')), 10000);
-    let lastEval = 0;
-    let lastPV: string[] = [];
-
-    const handler = (e: MessageEvent) => {
-      if (e.data.type === 'info') {
-        const line = e.data.payload;
-        const cpMatch = line.match(/score cp (-?\d+)/);
-        const mateMatch = line.match(/score mate (-?\d+)/);
-        if (cpMatch) lastEval = parseInt(cpMatch[1]);
-        else if (mateMatch) {
-          const m = parseInt(mateMatch[1]);
-          lastEval = m > 0 ? 30000 - m * 2 : -30000 - Math.abs(m) * 2;
-        }
-        const pvMatch = line.match(/pv (.+)/);
-        if (pvMatch) lastPV = pvMatch[1].split(' ');
-      }
-      if (e.data.type === 'bestmove') {
-        clearTimeout(timeout);
-        worker.removeEventListener('message', handler);
-        resolve({ fen, eval: lastEval, bestMove: e.data.payload.split(' ')[1], pv: lastPV, depth });
-      }
+async function analyzePositionApi(fen: string, depth: number): Promise<PositionEval> {
+  try {
+    const res = await fetch('/api/analyze', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fen, depth }),
+    });
+    if (!res.ok) throw new Error('API error');
+    const data = await res.json();
+    return {
+      fen,
+      eval: data.eval ?? 0,
+      bestMove: data.bestMove ?? '',
+      pv: data.pv ?? [],
+      depth: data.depth ?? depth,
     };
-
-    worker.addEventListener('message', handler);
-    worker.postMessage({ type: 'command', payload: `position fen ${fen}` });
-    worker.postMessage({ type: 'command', payload: `go depth ${depth}` });
-  });
-}
-
-const NUM_WORKERS = 8;
-
-function createWorkerPool(): Worker[] {
-  const workers: Worker[] = [];
-  for (let i = 0; i < NUM_WORKERS; i++) {
-    const w = new Worker('/stockfish-worker.js');
-    w.postMessage({ type: 'init' });
-    workers.push(w);
+  } catch {
+    throw new Error('API failed');
   }
-  return workers;
-}
-
-function waitForReady(worker: Worker, timeoutMs = 5000): Promise<void> {
-  return new Promise((resolve) => {
-    const handler = (e: MessageEvent) => {
-      if (e.data.type === 'ready') {
-        worker.removeEventListener('message', handler);
-        resolve();
-      }
-    };
-    worker.addEventListener('message', handler);
-    setTimeout(() => { worker.removeEventListener('message', handler); resolve(); }, timeoutMs);
-  });
 }
 
 export async function analyzeGame(
@@ -220,9 +180,6 @@ export async function analyzeGame(
   callbacks: AnalysisCallbacks
 ): Promise<void> {
   const evals: PositionEval[] = new Array(positions.length);
-  const hasToken = hasLichessToken();
-  // Authenticated: 10 req/sec, Anonymous: 1 req/sec
-  const rateLimitMs = hasToken ? 100 : 1000;
 
   // Detect terminal positions
   const terminal = new Set<number>();
@@ -232,67 +189,32 @@ export async function analyzeGame(
     if (b.isGameOver()) terminal.add(i);
   }
 
-  // Create local workers
-  const workers = createWorkerPool();
-  await Promise.all(workers.map(w => waitForReady(w)));
-
   let completed = 0;
   const total = positions.length;
 
-  // Phase 1: Lichess cloud eval (rate limited)
-  const lichessResults = new Map<number, PositionEval>();
-  const needsLocal: number[] = [];
-
+  // Analyze all positions via API (server-side Stockfish)
   for (let i = 0; i < positions.length; i++) {
-    if (terminal.has(i)) continue;
     callbacks.onProgress(completed, total, i === 0 ? 'Starting position' : sanMoves[i - 1]);
 
-    const result = await fetchLichessEval(positions[i]);
-    if (result) {
-      lichessResults.set(i, result);
+    if (terminal.has(i)) {
+      const fallback = evals[Math.max(0, i - 1)] ?? { fen: positions[i], eval: 0, bestMove: '', pv: [], depth };
+      evals[i] = { ...fallback, fen: positions[i] };
       completed++;
-      callbacks.onPositionEval(i, result);
-    } else {
-      needsLocal.push(i);
+      callbacks.onPositionEval(i, evals[i]);
+      continue;
     }
 
-    // Rate limit
-    if (i < positions.length - 1) {
-      await new Promise(r => setTimeout(r, rateLimitMs));
+    try {
+      evals[i] = await analyzePositionApi(positions[i], depth);
+    } catch {
+      const fallback = evals[Math.max(0, i - 1)] ?? { fen: positions[i], eval: 0, bestMove: '', pv: [], depth };
+      evals[i] = { ...fallback, fen: positions[i] };
     }
+
+    completed++;
+    callbacks.onProgress(completed, total, i === 0 ? 'Starting position' : sanMoves[i - 1]);
+    callbacks.onPositionEval(i, evals[i]);
   }
-
-  // Phase 2: Local Stockfish for unknown positions
-  if (needsLocal.length > 0) {
-    let localIdx = 0;
-    const processLocal = async (workerIdx: number) => {
-      while (localIdx < needsLocal.length) {
-        const i = needsLocal[localIdx++];
-        try {
-          const result = await analyzePositionLocal(workers[workerIdx], positions[i], depth);
-          evals[i] = result;
-        } catch {
-          const fallback = evals[Math.max(0, i - 1)] ?? { fen: positions[i], eval: 0, bestMove: '', pv: [], depth };
-          evals[i] = { ...fallback, fen: positions[i] };
-        }
-        completed++;
-        callbacks.onProgress(completed, total, sanMoves[i - 1] ?? '');
-        callbacks.onPositionEval(i, evals[i]);
-      }
-    };
-    await Promise.all(workers.map((_, idx) => processLocal(idx)));
-  }
-
-  // Merge results
-  lichessResults.forEach((result, i) => { evals[i] = result; });
-
-  // Fill terminal positions
-  terminal.forEach((i) => {
-    const fallback = evals[Math.max(0, i - 1)] ?? { fen: positions[i], eval: 0, bestMove: '', pv: [], depth };
-    evals[i] = { ...fallback, fen: positions[i] };
-  });
-
-  workers.forEach(w => w.terminate());
 
   try {
     const analyzedMoves = buildAnalysisResult(evals, sanMoves, uciMoves);
