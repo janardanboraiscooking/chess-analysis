@@ -198,8 +198,8 @@ export async function analyzeGame(
   let nextIndex = 0;
 
   const processNext = async (workerIdx: number) => {
-    while (nextIndex < indices.length) {
-      const i = indices[nextIndex++];
+    while (nextIndex < positions.length) {
+      const i = nextIndex++;
 
       if (terminal.has(i)) {
         const fallback = evals[Math.max(0, i - 1)] ?? { fen: positions[i], eval: 0, bestMove: '', pv: [], depth };
