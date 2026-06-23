@@ -30,21 +30,15 @@ export default function PgnUpload({ onPgnSubmit }: PgnUploadProps) {
         onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
         onDragLeave={() => setIsDragging(false)}
         onDrop={handleDrop}
-        className={`upload-area p-8 text-center ${isDragging ? 'dragging' : ''}`}
+        className={`upload-area p-10 text-center ${isDragging ? 'dragging' : ''}`}
       >
         <div className="mb-6">
-          <div className="w-16 h-16 mx-auto rounded-2xl flex items-center justify-center mb-4" style={{ background: 'var(--accent-glow)' }}>
-            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" style={{ color: 'var(--accent-light)' }}>
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-              <polyline points="17 8 12 3 7 8"/>
-              <line x1="12" y1="3" x2="12" y2="15"/>
-            </svg>
-          </div>
-          <p className="text-lg font-medium mb-1" style={{ color: 'var(--text-primary)' }}>
+          <div className="text-3xl mb-3" style={{ color: 'var(--gold-dim)' }}>♞</div>
+          <p className="text-base font-medium mb-1" style={{ color: 'var(--cream)' }}>
             Drop your PGN file here
           </p>
-          <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
-            or paste the PGN below
+          <p className="text-sm" style={{ color: 'var(--cream-muted)' }}>
+            or paste the moves below
           </p>
         </div>
 
@@ -52,13 +46,13 @@ export default function PgnUpload({ onPgnSubmit }: PgnUploadProps) {
           value={pgnText}
           onChange={(e) => setPgnText(e.target.value)}
           placeholder={'[Event "Casual Game"]\n[White "Player 1"]\n[Black "Player 2"]\n[Result "*"]\n\n1. e4 e5 2. Nf3 Nc6 3. Bb5 a6 *'}
-          className="input-field h-40 font-mono text-sm resize-none mb-4"
+          className="input h-36 mono text-xs resize-none mb-4"
         />
 
         <button
           onClick={() => pgnText.trim() && onPgnSubmit(pgnText)}
           disabled={!pgnText.trim()}
-          className="btn-primary w-full text-base"
+          className="btn w-full"
         >
           Analyze Game
         </button>

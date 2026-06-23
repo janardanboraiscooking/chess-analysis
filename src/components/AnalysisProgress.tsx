@@ -15,42 +15,28 @@ export default function AnalysisProgress({ current, total, status, currentMove }
     <div className="card p-4">
       <div className="flex justify-between items-center mb-3">
         <div className="flex items-center gap-2">
-          {status === 'analyzing' && (
-            <div className="w-2 h-2 rounded-full bg-blue-500 progress-animated" />
-          )}
-          {status === 'done' && (
-            <div className="w-2 h-2 rounded-full bg-green-500" />
-          )}
-          {status === 'error' && (
-            <div className="w-2 h-2 rounded-full bg-red-500" />
-          )}
-          <span className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
-            {status === 'analyzing' && `Analyzing position ${current} / ${total}`}
-            {status === 'done' && 'Analysis complete'}
-            {status === 'error' && 'Analysis error'}
+          {status === 'analyzing' && <div className="w-1.5 h-1.5 rounded-full progress-dot" style={{ background: 'var(--gold)' }} />}
+          {status === 'done' && <div className="w-1.5 h-1.5 rounded-full" style={{ background: 'var(--green)' }} />}
+          {status === 'error' && <div className="w-1.5 h-1.5 rounded-full" style={{ background: 'var(--red)' }} />}
+          <span className="text-sm font-medium" style={{ color: 'var(--cream)' }}>
+            {status === 'analyzing' && `Analyzing ${current} / ${total}`}
+            {status === 'done' && 'Complete'}
+            {status === 'error' && 'Failed'}
           </span>
         </div>
-        <span className="text-sm font-mono" style={{ color: 'var(--text-muted)' }}>{percent}%</span>
+        <span className="mono text-xs" style={{ color: 'var(--cream-muted)' }}>{percent}%</span>
       </div>
-
-      <div className="w-full rounded-full h-1.5" style={{ background: 'var(--bg-secondary)' }}>
+      <div className="w-full rounded-full h-1" style={{ background: 'var(--bg-elevated)' }}>
         <div
-          className="h-1.5 rounded-full transition-all duration-300"
+          className="h-1 rounded-full transition-all duration-300"
           style={{
             width: `${percent}%`,
-            background: status === 'error'
-              ? 'var(--red)'
-              : status === 'done'
-                ? 'var(--green)'
-                : 'linear-gradient(90deg, #6366f1, #a855f7)',
+            background: status === 'error' ? 'var(--red)' : status === 'done' ? 'var(--green)' : 'var(--gold)',
           }}
         />
       </div>
-
       {currentMove && status === 'analyzing' && (
-        <p className="text-xs mt-2 font-mono" style={{ color: 'var(--text-muted)' }}>
-          Last: {currentMove}
-        </p>
+        <p className="mono text-xs mt-2" style={{ color: 'var(--cream-muted)' }}>Last: {currentMove}</p>
       )}
     </div>
   );

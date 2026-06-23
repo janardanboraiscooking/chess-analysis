@@ -16,59 +16,43 @@ export default function EvalGraph({ evals, currentMoveIndex, onMoveClick }: Eval
     labels: evals.map((_, i) => i.toString()),
     datasets: [{
       data: evals.map(e => e.eval / 100),
-      borderColor: '#6366f1',
-      backgroundColor: 'rgba(99, 102, 241, 0.08)',
-      fill: true,
-      tension: 0.4,
-      borderWidth: 2,
-      pointRadius: evals.map((_, i) => i === currentMoveIndex ? 5 : 0),
-      pointBackgroundColor: '#6366f1',
-      pointBorderColor: '#fff',
+      borderColor: '#c9a84c',
+      backgroundColor: 'rgba(201, 168, 76, 0.06)',
+      fill: true, tension: 0.4, borderWidth: 1.5,
+      pointRadius: evals.map((_, i) => i === currentMoveIndex ? 4 : 0),
+      pointBackgroundColor: '#c9a84c',
+      pointBorderColor: '#0a0a0a',
       pointBorderWidth: 2,
     }],
   };
 
   const options = {
-    responsive: true,
-    maintainAspectRatio: false,
-    onClick: (_: any, elements: any) => {
-      if (elements.length > 0) onMoveClick(elements[0].index);
-    },
+    responsive: true, maintainAspectRatio: false,
+    onClick: (_: any, elements: any) => { if (elements.length > 0) onMoveClick(elements[0].index); },
     scales: {
       x: { display: false },
       y: {
-        grid: { color: 'rgba(255,255,255,0.05)', drawBorder: false },
-        ticks: {
-          color: '#64748b',
-          font: { family: 'JetBrains Mono', size: 11 },
-          callback: (v: any) => `${v > 0 ? '+' : ''}${v.toFixed(1)}`,
-        },
+        grid: { color: 'rgba(255,255,255,0.04)', drawBorder: false },
+        ticks: { color: '#6b6358', font: { family: 'JetBrains Mono', size: 10 }, callback: (v: any) => `${v > 0 ? '+' : ''}${v.toFixed(1)}` },
         border: { display: false },
       },
     },
     plugins: {
       legend: { display: false },
       tooltip: {
-        backgroundColor: '#1a1a25',
-        borderColor: '#334155',
-        borderWidth: 1,
-        titleFont: { family: 'JetBrains Mono', size: 12 },
-        bodyFont: { family: 'JetBrains Mono', size: 12 },
-        padding: 10,
-        cornerRadius: 8,
-        callbacks: {
-          label: (ctx: any) => `Eval: ${ctx.parsed.y > 0 ? '+' : ''}${ctx.parsed.y.toFixed(2)}`,
-        },
+        backgroundColor: '#161616', borderColor: '#333', borderWidth: 1,
+        titleFont: { family: 'JetBrains Mono', size: 11 },
+        bodyFont: { family: 'JetBrains Mono', size: 11 },
+        padding: 8, cornerRadius: 6,
+        callbacks: { label: (ctx: any) => `${ctx.parsed.y > 0 ? '+' : ''}${ctx.parsed.y.toFixed(2)}` },
       },
     },
   };
 
   return (
     <div>
-      <h3 className="text-sm font-semibold mb-2" style={{ color: 'var(--text-secondary)' }}>Evaluation</h3>
-      <div className="h-32">
-        <Line data={data} options={options} />
-      </div>
+      <h3 className="text-sm font-semibold mb-2" style={{ color: 'var(--cream-dim)', fontFamily: 'Playfair Display, serif' }}>Evaluation</h3>
+      <div className="h-28"><Line data={data} options={options} /></div>
     </div>
   );
 }

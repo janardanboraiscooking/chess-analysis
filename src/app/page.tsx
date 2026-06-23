@@ -56,57 +56,34 @@ export default function Home() {
         setProgress({ current: 0, total: 0, status: 'error', currentMove: 'Could not parse PGN' });
         return;
       }
-
       const worker = initWorker();
       await new Promise<void>((resolve) => {
         const handler = (e: MessageEvent) => {
-          if (e.data.type === 'ready') {
-            worker.removeEventListener('message', handler);
-            resolve();
-          }
+          if (e.data.type === 'ready') { worker.removeEventListener('message', handler); resolve(); }
         };
         worker.addEventListener('message', handler);
         setTimeout(() => { worker.removeEventListener('message', handler); resolve(); }, 5000);
       });
-
       const localEvals: PositionEval[] = [];
-
-      await analyzeGame(
-        parsed.positions,
-        parsed.sanMoves,
-        parsed.moves,
-        worker,
-        12,
-        {
-          onProgress: (current, total, move) => {
-            setProgress({ current, total, status: 'analyzing', currentMove: move });
-          },
-          onPositionEval: (index, eval_) => {
-            localEvals[index] = eval_;
-            setEvals([...localEvals]);
-          },
-          onComplete: (analyzedMoves, wACPL, bACPL) => {
-            setMoves(analyzedMoves);
-            setWhiteACPL(wACPL);
-            setBlackACPL(bACPL);
-            setProgress((p) => ({ ...p, status: 'done' }));
-
-            const game: AnalyzedGame = {
-              id: Date.now().toString(),
-              whiteName: parsed.whiteName,
-              blackName: parsed.blackName,
-              result: parsed.result,
-              moves: analyzedMoves,
-              whiteACPL: wACPL,
-              blackACPL: bACPL,
-              totalMoves: parsed.sanMoves.length,
-              analyzedAt: Date.now(),
-            };
-            saveGame(game).then(() => getAllGames().then(setSavedGames).catch(() => {}));
-          },
-          onError: () => {},
-        }
-      );
+      await analyzeGame(parsed.positions, parsed.sanMoves, parsed.moves, worker, 12, {
+        onProgress: (current, total, move) => setProgress({ current, total, status: 'analyzing', currentMove: move }),
+        onPositionEval: (index, eval_) => { localEvals[index] = eval_; setEvals([...localEvals]); },
+        onComplete: (analyzedMoves, wACPL, bACPL) => {
+          setMoves(analyzedMoves);
+          setWhiteACPL(wACPL);
+          setBlackACPL(bACPL);
+          setProgress((p) => ({ ...p, status: 'done' }));
+          const game: AnalyzedGame = {
+            id: Date.now().toString(),
+            whiteName: parsed.whiteName, blackName: parsed.blackName,
+            result: parsed.result, moves: analyzedMoves,
+            whiteACPL: wACPL, blackACPL: bACPL,
+            totalMoves: parsed.sanMoves.length, analyzedAt: Date.now(),
+          };
+          saveGame(game).then(() => getAllGames().then(setSavedGames).catch(() => {}));
+        },
+        onError: () => {},
+      });
     } catch {
       setProgress({ current: 0, total: 0, status: 'error', currentMove: 'Analysis failed' });
     }
@@ -118,38 +95,32 @@ export default function Home() {
   const blackMistakes = moves.filter(m => m.black?.classification === 'mistake').length;
 
   return (
-    <main className="min-h-screen" style={{ background: 'var(--bg-primary)' }}>
+    <main className="min-h-screen" style={{ background: 'var(--bg)' }}>
       {/* Header */}
-      <header className="border-b" style={{ borderColor: 'var(--border)', background: 'var(--bg-secondary)' }}>
-        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+      <header style={{ borderBottom: '1px solid var(--border)', background: 'var(--bg)' }}>
+        <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #6366f1, #a855f7)' }}>
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="12" cy="12" r="10"/>
-                <path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/>
-                <path d="M2 12h20"/>
-              </svg>
+            <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: 'var(--gold)', color: 'var(--bg)' }}>
+              <span className="text-sm font-bold" style={{ fontFamily: 'Playfair Display, serif' }}>♚</span>
             </div>
-            <div>
-              <h1 className="text-xl font-bold" style={{ color: 'var(--text-primary)' }}>Chess Analysis</h1>
-              <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Powered by Stockfish</p>
-            </div>
+            <span className="text-lg font-semibold tracking-tight" style={{ color: 'var(--white)', fontFamily: 'Playfair Display, serif' }}>
+              Chess Analysis
+            </span>
           </div>
-          <div className="flex items-center gap-4">
-            {tokenReady && <LichessLogin onTokenChange={() => setTokenReady(true)} />}
-          </div>
+          {tokenReady && <LichessLogin onTokenChange={() => setTokenReady(true)} />}
         </div>
       </header>
 
-      <div className="max-w-7xl mx-auto px-6 py-8">
+      <div className="max-w-6xl mx-auto px-6 py-10">
         {!pgn && (
           <div className="fade-in">
             <div className="text-center mb-12">
-              <h2 className="text-4xl font-bold mb-4">
-                <span className="gradient-text">Analyze Your Games</span>
-              </h2>
-              <p className="text-lg" style={{ color: 'var(--text-secondary)' }}>
-                Upload a PGN and get instant Stockfish analysis with move classifications
+              <div className="gold-line w-16 mx-auto mb-6" />
+              <h1 className="text-5xl font-bold mb-3 tracking-tight" style={{ color: 'var(--white)' }}>
+                Analyze Your Games
+              </h1>
+              <p className="text-base" style={{ color: 'var(--cream-dim)' }}>
+                Upload a PGN. Get instant Stockfish analysis.
               </p>
             </div>
             <PgnUpload onPgnSubmit={handlePgnSubmit} />
@@ -164,77 +135,67 @@ export default function Home() {
 
         {moves.length > 0 && (
           <div className="fade-in">
-            {/* Stats Row */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-              <div className="stat-card">
-                <div className="stat-value" style={{ color: 'var(--text-primary)' }}>{whiteACPL}</div>
+            {/* Stats */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+              <div className="stat">
+                <div className="stat-value">{whiteACPL}</div>
                 <div className="stat-label">White ACPL</div>
               </div>
-              <div className="stat-card">
-                <div className="stat-value" style={{ color: 'var(--text-primary)' }}>{blackACPL}</div>
+              <div className="stat">
+                <div className="stat-value">{blackACPL}</div>
                 <div className="stat-label">Black ACPL</div>
               </div>
-              <div className="stat-card">
+              <div className="stat">
                 <div className="stat-value" style={{ color: 'var(--red)' }}>{whiteBlunders + blackBlunders}</div>
                 <div className="stat-label">Blunders</div>
               </div>
-              <div className="stat-card">
-                <div className="stat-value" style={{ color: 'var(--orange)' }}>{whiteMistakes + blackMistakes}</div>
+              <div className="stat">
+                <div className="stat-value" style={{ color: 'var(--amber)' }}>{whiteMistakes + blackMistakes}</div>
                 <div className="stat-label">Mistakes</div>
               </div>
             </div>
 
-            {/* Main Content */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Main */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
               <div className="lg:col-span-2 space-y-4">
-                <div className="card p-4 board-glow">
+                <div className="card p-4">
                   <ChessBoard pgn={pgn} currentMoveIndex={currentMoveIndex} />
                 </div>
                 <div className="card p-4">
                   <EvalGraph evals={evals} currentMoveIndex={currentMoveIndex} onMoveClick={setCurrentMoveIndex} />
                 </div>
               </div>
-              <div>
-                <div className="card p-4 max-h-[700px] overflow-y-auto">
-                  <MoveList moves={moves} currentMoveIndex={currentMoveIndex} onMoveClick={setCurrentMoveIndex} />
-                </div>
+              <div className="card p-4 max-h-[700px] overflow-y-auto">
+                <MoveList moves={moves} currentMoveIndex={currentMoveIndex} onMoveClick={setCurrentMoveIndex} />
               </div>
             </div>
 
-            {/* Back to Upload */}
             <div className="mt-8 text-center">
-              <button
-                onClick={() => { setPgn(''); setMoves([]); setEvals([]); setCurrentMoveIndex(0); setProgress({ current: 0, total: 0, status: 'idle', currentMove: '' }); }}
-                className="btn-primary"
-              >
+              <button onClick={() => { setPgn(''); setMoves([]); setEvals([]); setCurrentMoveIndex(0); setProgress({ current: 0, total: 0, status: 'idle', currentMove: '' }); }} className="btn-outline">
                 Analyze Another Game
               </button>
             </div>
           </div>
         )}
 
-        {/* Saved Games */}
         {savedGames.length > 0 && !pgn && (
           <div className="mt-12 fade-in">
-            <h2 className="text-xl font-bold mb-4" style={{ color: 'var(--text-primary)' }}>Saved Games</h2>
+            <div className="gold-line w-12 mb-6" />
+            <h2 className="text-2xl font-bold mb-4" style={{ color: 'var(--white)' }}>Saved Games</h2>
             <div className="space-y-2">
               {savedGames.map((game) => (
-                <div key={game.id} className="card p-4 flex justify-between items-center hover:border-gray-600 transition-colors">
+                <div key={game.id} className="card p-4 flex justify-between items-center" style={{ transition: 'border-color 0.2s' }}>
                   <div>
-                    <span className="font-semibold" style={{ color: 'var(--text-primary)' }}>{game.whiteName || 'White'}</span>
-                    <span style={{ color: 'var(--text-muted)' }}> vs </span>
-                    <span className="font-semibold" style={{ color: 'var(--text-primary)' }}>{game.blackName || 'Black'}</span>
-                    <span className="ml-2 text-sm" style={{ color: 'var(--text-muted)' }}>({game.result})</span>
+                    <span className="font-semibold" style={{ color: 'var(--white)' }}>{game.whiteName || 'White'}</span>
+                    <span style={{ color: 'var(--cream-muted)' }}> vs </span>
+                    <span className="font-semibold" style={{ color: 'var(--white)' }}>{game.blackName || 'Black'}</span>
+                    <span className="ml-2 text-sm" style={{ color: 'var(--cream-muted)' }}>({game.result})</span>
                   </div>
                   <div className="flex gap-3 items-center">
-                    <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                      ACPL: {game.whiteACPL}/{game.blackACPL}
+                    <span className="mono text-xs" style={{ color: 'var(--cream-muted)' }}>
+                      ACPL {game.whiteACPL}/{game.blackACPL}
                     </span>
-                    <button
-                      onClick={() => deleteGame(game.id).then(() => getAllGames().then(setSavedGames).catch(() => {}))}
-                      className="text-xs hover:text-red-400 transition-colors"
-                      style={{ color: 'var(--text-muted)' }}
-                    >
+                    <button onClick={() => deleteGame(game.id).then(() => getAllGames().then(setSavedGames).catch(() => {}))} className="text-xs hover:opacity-70 transition-opacity" style={{ color: 'var(--cream-muted)' }}>
                       Delete
                     </button>
                   </div>
