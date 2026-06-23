@@ -26,10 +26,8 @@ export default function Home() {
 
   const initWorker = useCallback(() => {
     if (workerRef.current) return workerRef.current;
-    const worker = new Worker(
-      new URL('@/engine/stockfish.worker.ts', import.meta.url),
-      { type: 'module' }
-    );
+    // Create worker from public folder — avoids webpack bundle issues
+    const worker = new Worker('/stockfish-worker.js');
     worker.postMessage({ type: 'init' });
     workerRef.current = worker;
     return worker;
