@@ -55,7 +55,8 @@ export function parsePgnToPositions(pgn: string): PgnParseResult {
 
 export function buildAnalysisResult(
   evals: PositionEval[],
-  sanMoves: string[]
+  sanMoves: string[],
+  uciMoves: string[]
 ): AnalyzedMove[] {
   const analyzedMoves: AnalyzedMove[] = [];
 
@@ -65,7 +66,9 @@ export function buildAnalysisResult(
 
     const evalBefore = evals[i]?.eval ?? 0;
     const evalAfter = evals[i + 1]?.eval ?? 0;
-    const classification = classifyMove(evalBefore, evalAfter, isBlack);
+    const playerUci = uciMoves[i] ?? '';
+    const bestMove = evals[i]?.bestMove ?? '';
+    const classification = classifyMove(evalBefore, evalAfter, isBlack, playerUci, bestMove);
 
     const eb = isBlack ? -evalBefore : evalBefore;
     const ea = isBlack ? -evalAfter : evalAfter;
@@ -135,6 +138,7 @@ function analyzePosition(
 export async function analyzeGame(
   positions: string[],
   sanMoves: string[],
+  uciMoves: string[],
   worker: Worker,
   depth: number,
   callbacks: AnalysisCallbacks
@@ -168,7 +172,7 @@ export async function analyzeGame(
   }
 
   try {
-    const analyzedMoves = buildAnalysisResult(evals, sanMoves);
+    const analyzedMoves = buildAnalysisResult(evals, sanMoves, uciMoves);
 
     const allEvalLosses = analyzedMoves.flatMap(m => {
       const entries = [];
