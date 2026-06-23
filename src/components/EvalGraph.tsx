@@ -32,7 +32,7 @@ export default function EvalGraph({ evals, currentMoveIndex, onMoveClick, flippe
     onClick: (_: any, el: any) => { if (el.length > 0) onMoveClick(el[0].index); },
     scales: {
       x: { display: false },
-      y: { grid: { color: 'rgba(255,255,255,0.04)', drawBorder: false }, ticks: { color: '#6b6358', font: { family: 'JetBrains Mono', size: 10 }, callback: (v: any) => `${v > 0 ? '+' : ''}${v.toFixed(1)}` }, border: { display: false } },
+      y: { min: -20, max: 20, grid: { color: 'rgba(255,255,255,0.04)', drawBorder: false }, ticks: { color: '#6b6358', font: { family: 'JetBrains Mono', size: 10 }, callback: (v: any) => `${v > 0 ? '+' : ''}${v.toFixed(0)}` }, border: { display: false } },
     },
     plugins: { legend: { display: false }, tooltip: { backgroundColor: '#161616', borderColor: '#333', borderWidth: 1, titleFont: { family: 'JetBrains Mono', size: 11 }, bodyFont: { family: 'JetBrains Mono', size: 11 }, padding: 8, cornerRadius: 6, callbacks: { label: (ctx: any) => `${ctx.parsed.y > 0 ? '+' : ''}${ctx.parsed.y.toFixed(2)}` } } },
   };

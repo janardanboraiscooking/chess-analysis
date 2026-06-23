@@ -201,9 +201,10 @@ export default function AnalysePage() {
                         {curMove.evalBefore > 0 ? '+' : ''}{(curMove.evalBefore / 100).toFixed(2)} → {curMove.evalAfter > 0 ? '+' : ''}{(curMove.evalAfter / 100).toFixed(2)}
                       </span>
                     </div>
-                    {curMove.bestMove && curMove.evalLoss > 0 && (
+                    {curMove.bestMove && (
                       <p className="text-xs text-[var(--cream-muted)]">
-                        Best: <span className="mono text-[var(--gold)]">{curMove.bestMove}</span> · Lost {curMove.evalLoss}cp
+                        Best: <span className="mono text-[var(--gold)]">{curMove.bestMove}</span>
+                        {curMove.evalLoss > 0 && <> · Lost {curMove.evalLoss}cp</>}
                       </p>
                     )}
                     {curMove.pv.length > 0 && (
