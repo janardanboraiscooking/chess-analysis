@@ -149,9 +149,11 @@ export async function analyzeGame(
       const evalResult = await analyzePosition(worker, positions[i], depth);
       evals.push(evalResult);
       callbacks.onPositionEval(i, evalResult);
-    } catch (err) {
-      callbacks.onError(`Failed at position ${i}: ${err}`);
-      return;
+    } catch {
+      // Last position may be checkmate/stalemate — use last known eval
+      const fallback = evals.length > 0 ? evals[evals.length - 1] : { fen: positions[i], eval: 0, bestMove: '', pv: [], depth };
+      evals.push({ ...fallback, fen: positions[i] });
+      callbacks.onPositionEval(i, evals[evals.length - 1]);
     }
   }
 
