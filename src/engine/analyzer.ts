@@ -106,7 +106,7 @@ function analyzePosition(
   depth: number
 ): Promise<PositionEval> {
   return new Promise((resolve, reject) => {
-    const timeout = setTimeout(() => reject(new Error('Timeout')), 60000);
+    const timeout = setTimeout(() => reject(new Error('Timeout')), 15000);
     let lastEval = 0;
     let lastPV: string[] = [];
 
@@ -145,12 +145,22 @@ export async function analyzeGame(
     const moveLabel = i === 0 ? 'Starting position' : sanMoves[i - 1];
     callbacks.onProgress(i, positions.length, moveLabel);
 
+    // Skip checkmate/stalemate positions — Stockfish won't send bestmove
+    const testBoard = new Chess();
+    try { testBoard.load(positions[i]); } catch {}
+    if (testBoard.isGameOver()) {
+      const evalsLen = evals.length;
+      const fallback = evalsLen > 0 ? evals[evalsLen - 1] : { fen: positions[i], eval: 0, bestMove: '', pv: [], depth };
+      evals.push({ ...fallback, fen: positions[i] });
+      callbacks.onPositionEval(i, evals[evals.length - 1]);
+      continue;
+    }
+
     try {
       const evalResult = await analyzePosition(worker, positions[i], depth);
       evals.push(evalResult);
       callbacks.onPositionEval(i, evalResult);
     } catch {
-      // Last position may be checkmate/stalemate — use last known eval
       const fallback = evals.length > 0 ? evals[evals.length - 1] : { fen: positions[i], eval: 0, bestMove: '', pv: [], depth };
       evals.push({ ...fallback, fen: positions[i] });
       callbacks.onPositionEval(i, evals[evals.length - 1]);
