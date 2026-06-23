@@ -5,12 +5,26 @@ import { PositionEval } from '@/types';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Filler);
 
-interface Props { evals: PositionEval[]; currentMoveIndex: number; onMoveClick: (i: number) => void; }
+interface EvalGraphProps {
+  evals: PositionEval[];
+  currentMoveIndex: number;
+  onMoveClick: (i: number) => void;
+  flipped?: boolean;
+}
 
-export default function EvalGraph({ evals, currentMoveIndex, onMoveClick }: Props) {
+export default function EvalGraph({ evals, currentMoveIndex, onMoveClick, flipped }: EvalGraphProps) {
   const data = {
     labels: evals.map((_, i) => i.toString()),
-    datasets: [{ data: evals.map(e => e.eval / 100), borderColor: '#c9a84c', backgroundColor: 'rgba(201,168,76,0.06)', fill: true, tension: 0.4, borderWidth: 1.5, pointRadius: evals.map((_, i) => i === currentMoveIndex ? 4 : 0), pointBackgroundColor: '#c9a84c', pointBorderColor: '#0a0a0a', pointBorderWidth: 2 }],
+    datasets: [{
+      data: evals.map(e => flipped ? -(e.eval / 100) : e.eval / 100),
+      borderColor: '#c9a84c',
+      backgroundColor: 'rgba(201,168,76,0.06)',
+      fill: true, tension: 0.4, borderWidth: 1.5,
+      pointRadius: evals.map((_, i) => i === currentMoveIndex ? 4 : 0),
+      pointBackgroundColor: '#c9a84c',
+      pointBorderColor: '#0a0a0a',
+      pointBorderWidth: 2,
+    }],
   };
 
   const options = {

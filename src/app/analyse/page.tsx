@@ -21,6 +21,7 @@ export default function AnalysePage() {
   const [blackACPL, setBlackACPL] = useState(0);
   const [savedGames, setSavedGames] = useState<AnalyzedGame[]>([]);
   const [activeTab, setActiveTab] = useState<'moves' | 'details'>('moves');
+  const [flipped, setFlipped] = useState(false);
   const workerRef = useRef<Worker | null>(null);
 
   useEffect(() => { getAllGames().then(setSavedGames).catch(() => {}); }, []);
@@ -34,17 +35,17 @@ export default function AnalysePage() {
   }, []);
 
   const handlePgnSubmit = useCallback(async (pgnText: string) => {
-    setPgn(pgnText); setMoves([]); setEvals([]); setCurrentMoveIndex(0); setGameInfo(null);
+    setPgn(pgnText); setMoves([]); setEvals([]); setCurrentMoveIndex(0); setGameInfo(null); setFlipped(false);
     setProgress({ current: 0, total: 0, status: 'analyzing', currentMove: '' });
     try {
       const parsed = parsePgnToPositions(pgnText);
       if (parsed.positions.length < 2) { setProgress({ current: 0, total: 0, status: 'error', currentMove: 'Could not parse PGN' }); return; }
       setGameInfo({ white: parsed.whiteName, black: parsed.blackName, result: parsed.result });
       const worker = initWorker();
-      await new Promise<void>((r) => {
-        const h = (e: MessageEvent) => { if (e.data.type === 'ready') { worker.removeEventListener('message', h); r(); } };
-        worker.addEventListener('message', h);
-        setTimeout(() => { worker.removeEventListener('message', h); r(); }, 5000);
+      await new Promise<void>((resolve) => {
+        const handler = (e: MessageEvent) => { if (e.data.type === 'ready') { worker.removeEventListener('message', handler); resolve(); } };
+        worker.addEventListener('message', handler);
+        setTimeout(() => { worker.removeEventListener('message', handler); resolve(); }, 10000);
       });
       const le: PositionEval[] = [];
       await analyzeGame(parsed.positions, parsed.sanMoves, parsed.moves, worker, 14, {
@@ -71,15 +72,17 @@ export default function AnalysePage() {
   const total = moves.length * 2;
 
   const curEval = evals[currentMoveIndex];
-  const evalCp = curEval?.eval ?? 0;
+  // When flipped, invert eval (from viewed player's perspective)
+  const rawEvalCp = curEval?.eval ?? 0;
+  const evalCp = flipped ? -rawEvalCp : rawEvalCp;
   const evalPawns = (evalCp / 100).toFixed(2);
-  const evalSide = evalCp > 0 ? 'White' : evalCp < 0 ? 'Black' : 'Equal';
+  const evalSide = evalCp > 0 ? (flipped ? 'Black' : 'White') : evalCp < 0 ? (flipped ? 'White' : 'Black') : 'Equal';
 
   const curMove = currentMoveIndex < total
     ? moves[Math.floor(currentMoveIndex / 2)]?.[currentMoveIndex % 2 === 0 ? 'white' : 'black']
     : null;
 
-  const reset = () => { setPgn(''); setMoves([]); setEvals([]); setCurrentMoveIndex(0); setGameInfo(null); setProgress({ current: 0, total: 0, status: 'idle', currentMove: '' }); };
+  const reset = () => { setPgn(''); setMoves([]); setEvals([]); setCurrentMoveIndex(0); setGameInfo(null); setFlipped(false); setProgress({ current: 0, total: 0, status: 'idle', currentMove: '' }); };
 
   return (
     <main className="min-h-screen bg-[#0a0a0a]">
@@ -168,19 +171,34 @@ export default function AnalysePage() {
               <div className="col-span-12 lg:col-span-5 space-y-3">
                 <div className="card p-3">
                   <div className="flex gap-3">
+                    {/* Eval Bar */}
                     <div className="flex flex-col items-center gap-1">
                       <span className="mono text-[10px] text-[var(--cream-muted)]">{evalSide}</span>
                       <div className="eval-bar-container h-80">
-                        <div className="eval-bar-fill" style={{ height: `${Math.min(100, Math.max(5, 50 + (evalCp / 100) * 2))}%`, background: evalCp >= 0 ? 'var(--cream)' : '#333' }} />
+                        <div className="eval-bar-fill" style={{
+                          height: `${Math.min(100, Math.max(5, 50 + (evalCp / 100) * 2))}%`,
+                          background: evalCp >= 0 ? 'var(--cream)' : '#333'
+                        }} />
                       </div>
                       <span className="mono text-xs font-semibold" style={{ color: evalCp > 0 ? 'var(--cream)' : 'var(--cream-muted)' }}>
                         {evalCp > 0 ? '+' : ''}{evalPawns}
                       </span>
                     </div>
-                    <div className="flex-1"><ChessBoard pgn={pgn} currentMoveIndex={currentMoveIndex} /></div>
+                    {/* Board */}
+                    <div className="flex-1">
+                      <ChessBoard pgn={pgn} currentMoveIndex={currentMoveIndex} orientation={flipped ? 'black' : 'white'} whiteName={gameInfo?.white} blackName={gameInfo?.black} />
+                    </div>
+                  </div>
+                  {/* Flip button */}
+                  <div className="flex justify-center mt-2">
+                    <button onClick={() => setFlipped(!flipped)} className="text-xs px-3 py-1 rounded-md transition-colors hover:bg-[#111] text-[var(--cream-muted)] hover:text-[var(--cream-dim)]">
+                      ↻ Flip Board
+                    </button>
                   </div>
                 </div>
-                <div className="card p-3"><EvalGraph evals={evals} currentMoveIndex={currentMoveIndex} onMoveClick={setCurrentMoveIndex} /></div>
+                <div className="card p-3">
+                  <EvalGraph evals={evals} currentMoveIndex={currentMoveIndex} onMoveClick={setCurrentMoveIndex} flipped={flipped} />
+                </div>
               </div>
 
               {/* Right: Moves */}
@@ -226,12 +244,12 @@ export default function AnalysePage() {
                     ) : (
                       <div className="space-y-4">
                         <div>
-                          <h4 className="text-xs font-semibold mb-2 uppercase tracking-wider text-[var(--cream-muted)]">White Accuracy</h4>
+                          <h4 className="text-xs font-semibold mb-2 uppercase tracking-wider text-[var(--cream-muted)]">{gameInfo?.white || 'White'} Accuracy</h4>
                           <div className="w-full rounded-full h-2 bg-[#111]"><div className="h-2 rounded-full bg-[var(--green)]" style={{ width: `${total > 0 ? (wbe / (total / 2)) * 100 : 0}%` }} /></div>
                           <p className="mono text-xs mt-1 text-[var(--cream-muted)]">{wbe}/{total / 2} best/excellent</p>
                         </div>
                         <div>
-                          <h4 className="text-xs font-semibold mb-2 uppercase tracking-wider text-[var(--cream-muted)]">Black Accuracy</h4>
+                          <h4 className="text-xs font-semibold mb-2 uppercase tracking-wider text-[var(--cream-muted)]">{gameInfo?.black || 'Black'} Accuracy</h4>
                           <div className="w-full rounded-full h-2 bg-[#111]"><div className="h-2 rounded-full bg-[var(--green)]" style={{ width: `${total > 0 ? (bbe / (total / 2)) * 100 : 0}%` }} /></div>
                           <p className="mono text-xs mt-1 text-[var(--cream-muted)]">{bbe}/{total / 2} best/excellent</p>
                         </div>
