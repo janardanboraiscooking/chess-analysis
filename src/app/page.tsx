@@ -40,58 +40,69 @@ export default function Home() {
     setCurrentMoveIndex(0);
     setProgress({ current: 0, total: 0, status: 'analyzing', currentMove: '' });
 
-    const parsed = parsePgnToPositions(pgnText);
-    const worker = initWorker();
+    try {
+      const parsed = parsePgnToPositions(pgnText);
+      if (parsed.positions.length < 2) {
+        setProgress({ current: 0, total: 0, status: 'error', currentMove: 'Could not parse PGN' });
+        return;
+      }
 
-    await new Promise<void>((resolve) => {
-      const handler = (e: MessageEvent) => {
-        if (e.data.type === 'ready') {
+      const worker = initWorker();
+
+      await new Promise<void>((resolve) => {
+        const handler = (e: MessageEvent) => {
+          if (e.data.type === 'ready') {
+            worker.removeEventListener('message', handler);
+            resolve();
+          }
+        };
+        worker.addEventListener('message', handler);
+        setTimeout(() => {
           worker.removeEventListener('message', handler);
           resolve();
+        }, 5000);
+      });
+
+      const localEvals: PositionEval[] = [];
+
+      await analyzeGame(
+        parsed.positions,
+        parsed.sanMoves,
+        worker,
+        10,
+        {
+          onProgress: (current, total, move) => {
+            setProgress({ current, total, status: 'analyzing', currentMove: move });
+          },
+          onPositionEval: (index, eval_) => {
+            localEvals[index] = eval_;
+            setEvals([...localEvals]);
+          },
+          onComplete: (analyzedMoves, wACPL, bACPL) => {
+            setMoves(analyzedMoves);
+            setWhiteACPL(wACPL);
+            setBlackACPL(bACPL);
+            setProgress((p) => ({ ...p, status: 'done' }));
+
+            const game: AnalyzedGame = {
+              id: Date.now().toString(),
+              whiteName: parsed.whiteName,
+              blackName: parsed.blackName,
+              result: parsed.result,
+              moves: analyzedMoves,
+              whiteACPL: wACPL,
+              blackACPL: bACPL,
+              totalMoves: parsed.sanMoves.length,
+              analyzedAt: Date.now(),
+            };
+            saveGame(game).then(() => getAllGames().then(setSavedGames).catch(() => {}));
+          },
+          onError: () => {},
         }
-      };
-      worker.addEventListener('message', handler);
-    });
-
-    const localEvals: PositionEval[] = [];
-
-    await analyzeGame(
-      parsed.positions,
-      parsed.sanMoves,
-      worker,
-      12,
-      {
-        onProgress: (current, total, move) => {
-          setProgress({ current, total, status: 'analyzing', currentMove: move });
-        },
-        onPositionEval: (index, eval_) => {
-          localEvals[index] = eval_;
-          setEvals([...localEvals]);
-        },
-        onComplete: (analyzedMoves, wACPL, bACPL) => {
-          setMoves(analyzedMoves);
-          setWhiteACPL(wACPL);
-          setBlackACPL(bACPL);
-          setProgress((p) => ({ ...p, status: 'done' }));
-
-          const game: AnalyzedGame = {
-            id: Date.now().toString(),
-            whiteName: parsed.whiteName,
-            blackName: parsed.blackName,
-            result: parsed.result,
-            moves: analyzedMoves,
-            whiteACPL: wACPL,
-            blackACPL: bACPL,
-            totalMoves: parsed.sanMoves.length,
-            analyzedAt: Date.now(),
-          };
-          saveGame(game).then(() => getAllGames().then(setSavedGames).catch(() => {}));
-        },
-        onError: () => {
-          setProgress((p) => ({ ...p, status: 'error' }));
-        },
-      }
-    );
+      );
+    } catch {
+      setProgress({ current: 0, total: 0, status: 'error', currentMove: 'Analysis failed' });
+    }
   }, [initWorker]);
 
   return (

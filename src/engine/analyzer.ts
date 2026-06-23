@@ -157,18 +157,22 @@ export async function analyzeGame(
     }
   }
 
-  const analyzedMoves = buildAnalysisResult(evals, sanMoves);
+  try {
+    const analyzedMoves = buildAnalysisResult(evals, sanMoves);
 
-  const allEvalLosses = analyzedMoves.flatMap(m => {
-    const entries = [];
-    if (m.white) entries.push({ evalLoss: m.white.evalLoss, isBlack: false });
-    if (m.black) entries.push({ evalLoss: m.black.evalLoss, isBlack: true });
-    return entries;
-  });
+    const allEvalLosses = analyzedMoves.flatMap(m => {
+      const entries = [];
+      if (m.white) entries.push({ evalLoss: m.white.evalLoss, isBlack: false });
+      if (m.black) entries.push({ evalLoss: m.black.evalLoss, isBlack: true });
+      return entries;
+    });
 
-  const { calculateACPL } = await import('@/lib/acpl');
-  const whiteACPL = calculateACPL(allEvalLosses, false);
-  const blackACPL = calculateACPL(allEvalLosses, true);
+    const { calculateACPL } = await import('@/lib/acpl');
+    const whiteACPL = calculateACPL(allEvalLosses, false);
+    const blackACPL = calculateACPL(allEvalLosses, true);
 
-  callbacks.onComplete(analyzedMoves, whiteACPL, blackACPL);
+    callbacks.onComplete(analyzedMoves, whiteACPL, blackACPL);
+  } catch {
+    callbacks.onError('Failed to build results');
+  }
 }
