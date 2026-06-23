@@ -65,9 +65,7 @@ export function buildAnalysisResult(
 
     const evalBefore = evals[i]?.eval ?? 0;
     const evalAfter = evals[i + 1]?.eval ?? 0;
-    const playerUci = uciMoves[i] ?? '';
-    const bestMove = evals[i]?.bestMove ?? '';
-    const classification = classifyMove(evalBefore, evalAfter, isBlack, playerUci, bestMove);
+    const classification = classifyMove(evalBefore, evalAfter, isBlack);
 
     const eb = isBlack ? -evalBefore : evalBefore;
     const ea = isBlack ? -evalAfter : evalAfter;
