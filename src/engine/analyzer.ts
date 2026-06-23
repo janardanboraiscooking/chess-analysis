@@ -262,10 +262,10 @@ export async function analyzeGame(
   });
 
   // Fill terminal positions
-  for (const i of terminal) {
+  terminal.forEach((i) => {
     const fallback = evals[Math.max(0, i - 1)] ?? { fen: positions[i], eval: 0, bestMove: '', pv: [], depth };
     evals[i] = { ...fallback, fen: positions[i] };
-  }
+  });
 
   workers.forEach(w => w.terminate());
 
