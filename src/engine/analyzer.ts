@@ -144,7 +144,8 @@ function analyzePositionWorker(
   });
 }
 
-const NUM_WORKERS = 16;
+const NUM_WORKERS = 32;
+const DISPLAY_DELAY_MS = Math.ceil(1000 / NUM_WORKERS); // ~31ms between each display update
 
 function createWorkerPool(): Worker[] {
   const workers: Worker[] = [];
@@ -192,39 +193,48 @@ export async function analyzeGame(
   let completed = 0;
   const total = positions.length;
 
-  // Analyze positions in parallel batches
-  const indices = Array.from({ length: positions.length }, (_, i) => i);
+  // Collect all results first (workers run in parallel)
+  const results: { index: number; eval: PositionEval }[] = [];
   let nextIndex = 0;
 
   const processNext = async (workerIdx: number) => {
     while (nextIndex < indices.length) {
       const i = indices[nextIndex++];
 
-      callbacks.onProgress(completed, total, i === 0 ? 'Starting position' : sanMoves[i - 1]);
-
       if (terminal.has(i)) {
         const fallback = evals[Math.max(0, i - 1)] ?? { fen: positions[i], eval: 0, bestMove: '', pv: [], depth };
-        evals[i] = { ...fallback, fen: positions[i] };
-        completed++;
-        callbacks.onPositionEval(i, evals[i]);
+        const result = { ...fallback, fen: positions[i] };
+        results.push({ index: i, eval: result });
         continue;
       }
 
       try {
-        evals[i] = await analyzePositionWorker(workers[workerIdx], positions[i], depth);
+        const result = await analyzePositionWorker(workers[workerIdx], positions[i], depth);
+        results.push({ index: i, eval: result });
       } catch {
         const fallback = evals[Math.max(0, i - 1)] ?? { fen: positions[i], eval: 0, bestMove: '', pv: [], depth };
-        evals[i] = { ...fallback, fen: positions[i] };
+        results.push({ index: i, eval: { ...fallback, fen: positions[i] } });
       }
-
-      completed++;
-      callbacks.onProgress(completed, total, i === 0 ? 'Starting position' : sanMoves[i - 1]);
-      callbacks.onPositionEval(i, evals[i]);
     }
   };
 
+  // Run all workers in parallel
   await Promise.all(workers.map((_, idx) => processNext(idx)));
   workers.forEach(w => w.terminate());
+
+  // Sort results by position index
+  results.sort((a, b) => a.index - b.index);
+
+  // Display results one by one with delay for smooth progress
+  for (const result of results) {
+    evals[result.index] = result.eval;
+    completed++;
+    callbacks.onProgress(completed, total, result.index === 0 ? 'Starting position' : sanMoves[result.index - 1]);
+    callbacks.onPositionEval(result.index, result.eval);
+    if (completed < total) {
+      await new Promise(r => setTimeout(r, DISPLAY_DELAY_MS));
+    }
+  }
 
   try {
     const analyzedMoves = buildAnalysisResult(evals, sanMoves, uciMoves);
