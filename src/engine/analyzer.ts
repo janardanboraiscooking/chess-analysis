@@ -257,9 +257,9 @@ export async function analyzeGame(
   }
 
   // Merge Lichess results
-  for (const [i, result] of lichessResults) {
+  lichessResults.forEach((result, i) => {
     evals[i] = result;
-  }
+  });
 
   // Fill terminal positions
   for (const i of terminal) {
