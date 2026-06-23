@@ -20,7 +20,6 @@ export function parsePgnToPositions(pgn: string): PgnParseResult {
   try {
     chess.loadPgn(pgn);
   } catch {
-    // Try stripping headers and loading just moves
     try {
       const movesOnly = pgn.replace(/\[.*?\]/g, '').replace(/\{.*?\}/g, '').trim();
       chess.reset();
@@ -135,58 +134,118 @@ function analyzePosition(
   });
 }
 
+const NUM_WORKERS = 8;
+
+function createWorkerPool(): Worker[] {
+  const workers: Worker[] = [];
+  for (let i = 0; i < NUM_WORKERS; i++) {
+    const w = new Worker('/stockfish-worker.js');
+    w.postMessage({ type: 'init' });
+    workers.push(w);
+  }
+  return workers;
+}
+
+function waitForReady(worker: Worker, timeoutMs = 5000): Promise<void> {
+  return new Promise((resolve) => {
+    const handler = (e: MessageEvent) => {
+      if (e.data.type === 'ready') {
+        worker.removeEventListener('message', handler);
+        resolve();
+      }
+    };
+    worker.addEventListener('message', handler);
+    setTimeout(() => {
+      worker.removeEventListener('message', handler);
+      resolve();
+    }, timeoutMs);
+  });
+}
+
 export async function analyzeGame(
   positions: string[],
   sanMoves: string[],
   uciMoves: string[],
-  worker: Worker,
+  _singleWorker: Worker,
   depth: number,
   callbacks: AnalysisCallbacks
 ): Promise<void> {
-  const evals: PositionEval[] = [];
+  const evals: PositionEval[] = new Array(positions.length);
 
+  // Identify terminal positions (checkmate/stalemate)
+  const terminal = new Set<number>();
   for (let i = 0; i < positions.length; i++) {
-    const moveLabel = i === 0 ? 'Starting position' : sanMoves[i - 1];
-    callbacks.onProgress(i, positions.length, moveLabel);
-
-    // Skip checkmate/stalemate positions — Stockfish won't send bestmove
     const testBoard = new Chess();
     try { testBoard.load(positions[i]); } catch {}
     if (testBoard.isGameOver()) {
-      const evalsLen = evals.length;
-      const fallback = evalsLen > 0 ? evals[evalsLen - 1] : { fen: positions[i], eval: 0, bestMove: '', pv: [], depth };
-      evals.push({ ...fallback, fen: positions[i] });
-      callbacks.onPositionEval(i, evals[evals.length - 1]);
-      continue;
+      terminal.add(i);
     }
+  }
 
+  // Create worker pool and wait for all ready
+  const workers = createWorkerPool();
+  await Promise.all(workers.map(w => waitForReady(w)));
+
+  let completed = 0;
+  const total = positions.length;
+
+  // Process positions in parallel batches
+  const indices = Array.from({ length: positions.length }, (_, i) => i);
+
+  await new Promise<void>(async (resolveAll) => {
+    let nextIndex = 0;
+
+    const processNext = async (workerIdx: number) => {
+      while (nextIndex < indices.length) {
+        const i = indices[nextIndex++];
+
+        callbacks.onProgress(completed, total, i === 0 ? 'Starting position' : sanMoves[i - 1]);
+
+        if (terminal.has(i)) {
+          const fallback = evals[Math.max(0, i - 1)] ?? { fen: positions[i], eval: 0, bestMove: '', pv: [], depth };
+          evals[i] = { ...fallback, fen: positions[i] };
+          completed++;
+          callbacks.onPositionEval(i, evals[i]);
+          continue;
+        }
+
+        try {
+          const result = await analyzePosition(workers[workerIdx], positions[i], depth);
+          evals[i] = result;
+        } catch {
+          const fallback = evals[Math.max(0, i - 1)] ?? { fen: positions[i], eval: 0, bestMove: '', pv: [], depth };
+          evals[i] = { ...fallback, fen: positions[i] };
+        }
+
+        completed++;
+        callbacks.onProgress(completed, total, i === 0 ? 'Starting position' : sanMoves[i - 1]);
+        callbacks.onPositionEval(i, evals[i]);
+      }
+    };
+
+    // Start all workers
+    await Promise.all(workers.map((_, idx) => processNext(idx)));
+
+    // Terminate workers
+    workers.forEach(w => w.terminate());
+
+    // Build results
     try {
-      const evalResult = await analyzePosition(worker, positions[i], depth);
-      evals.push(evalResult);
-      callbacks.onPositionEval(i, evalResult);
+      const analyzedMoves = buildAnalysisResult(evals, sanMoves, uciMoves);
+      const allEvalLosses = analyzedMoves.flatMap(m => {
+        const entries = [];
+        if (m.white) entries.push({ evalLoss: m.white.evalLoss, isBlack: false });
+        if (m.black) entries.push({ evalLoss: m.black.evalLoss, isBlack: true });
+        return entries;
+      });
+      const { calculateACPL } = await import('@/lib/acpl');
+      const whiteACPL = calculateACPL(allEvalLosses, false);
+      const blackACPL = calculateACPL(allEvalLosses, true);
+      callbacks.onComplete(analyzedMoves, whiteACPL, blackACPL);
     } catch {
-      const fallback = evals.length > 0 ? evals[evals.length - 1] : { fen: positions[i], eval: 0, bestMove: '', pv: [], depth };
-      evals.push({ ...fallback, fen: positions[i] });
-      callbacks.onPositionEval(i, evals[evals.length - 1]);
+      callbacks.onError('Failed to build results');
     }
-  }
 
-  try {
-    const analyzedMoves = buildAnalysisResult(evals, sanMoves, uciMoves);
-
-    const allEvalLosses = analyzedMoves.flatMap(m => {
-      const entries = [];
-      if (m.white) entries.push({ evalLoss: m.white.evalLoss, isBlack: false });
-      if (m.black) entries.push({ evalLoss: m.black.evalLoss, isBlack: true });
-      return entries;
-    });
-
-    const { calculateACPL } = await import('@/lib/acpl');
-    const whiteACPL = calculateACPL(allEvalLosses, false);
-    const blackACPL = calculateACPL(allEvalLosses, true);
-
-    callbacks.onComplete(analyzedMoves, whiteACPL, blackACPL);
-  } catch {
-    callbacks.onError('Failed to build results');
-  }
+    resolveAll();
+  });
 }
