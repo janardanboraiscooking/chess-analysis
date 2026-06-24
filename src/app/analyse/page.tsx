@@ -147,7 +147,11 @@ export default function AnalysePage() {
             <div className="text-center mb-10">
               <div className="gold-line w-12 mx-auto mb-6" />
               <h1 className="text-4xl font-bold mb-3 text-[var(--cream)]">Analyze a Game</h1>
-              <p className="text-base text-[var(--cream-dim)]">Upload a PGN to get instant Stockfish analysis</p>
+              <p className="text-base text-[var(--cream-dim)]">Upload a PGN or import from Lichess/Chess.com</p>
+              <div className="mt-3 inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[var(--gold-glow)] border border-[var(--gold-dim)]">
+                <span className="text-xs text-[var(--gold)]">♚ GoatedChess Engine</span>
+                <span className="text-[10px] text-[var(--cream-muted)]">Under development — analysis powered by Stockfish</span>
+              </div>
             </div>
             <PgnUpload onPgnSubmit={handlePgnSubmit} />
             <div className="max-w-2xl mx-auto px-2 md:px-0 mt-4">
