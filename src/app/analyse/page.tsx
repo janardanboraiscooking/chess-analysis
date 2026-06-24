@@ -89,21 +89,21 @@ export default function AnalysePage() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [moves.length]);
 
-  // Game rating based on accuracy, blunders, mistakes
-  const calcRating = (acpl: number, blunders: number, mistakes: number, inaccuracies: number, totalMoves: number, bestExcellent: number) => {
-    if (totalMoves === 0) return 0;
-    // Accuracy = % of moves that were best/excellent/good
-    const goodMoves = bestExcellent + moves.filter(m => {
-      const cls = m.white?.classification || m.black?.classification;
-      return cls === 'good';
-    }).length;
-    const accuracy = Math.min(100, (goodMoves / totalMoves) * 100);
-    // Formula: base + accuracy bonus - penalties
-    const rating = 2000 + (accuracy - 50) * 18 - blunders * 30 - mistakes * 10;
-    return Math.max(800, Math.min(3200, Math.round(rating)));
+  // Game rating — ACPL is the primary factor
+  const calcRating = (acpl: number, blunders: number, mistakes: number) => {
+    // ACPL directly maps to rating range
+    // ACPL 0-20 = GM (2600-2800)
+    // ACPL 20-50 = Strong (2000-2500)
+    // ACPL 50-100 = Club (1500-2000)
+    // ACPL 100-200 = Intermediate (1000-1500)
+    // ACPL 200+ = Beginner (<1000)
+    const acplRating = Math.max(800, 2600 - acpl * 2);
+    const blunderPenalty = blunders * 40;
+    const mistakePenalty = mistakes * 10;
+    return Math.max(800, Math.min(3000, Math.round(acplRating - blunderPenalty - mistakePenalty)));
   };
-  const whiteRating = calcRating(whiteACPL, wb, wm, wi, Math.ceil(total / 2), wbe);
-  const blackRating = calcRating(blackACPL, bb, bm, bi, Math.floor(total / 2), bbe);
+  const whiteRating = calcRating(whiteACPL, wb, wm);
+  const blackRating = calcRating(blackACPL, bb, bm);
 
   const curEval = evals[currentMoveIndex];
   const rawEvalCp = curEval?.eval ?? 0;
