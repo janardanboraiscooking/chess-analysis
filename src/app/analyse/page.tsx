@@ -28,6 +28,22 @@ export default function AnalysePage() {
 
   useEffect(() => { getAllGames().then(setSavedGames).catch(() => {}); }, []);
 
+  // Keyboard navigation
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (moves.length === 0) return;
+      if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+        e.preventDefault();
+        setCurrentMoveIndex(prev => Math.max(0, prev - 1));
+      } else if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+        e.preventDefault();
+        setCurrentMoveIndex(prev => Math.min(total - 1, prev + 1));
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [moves.length, total]);
+
   const initWorker = useCallback(() => {
     if (workerRef.current) return workerRef.current;
     const w = new Worker('/stockfish-worker.js');
@@ -72,6 +88,19 @@ export default function AnalysePage() {
   const wbe = moves.filter(m => m.white?.classification === 'best' || m.white?.classification === 'excellent').length;
   const bbe = moves.filter(m => m.black?.classification === 'best' || m.black?.classification === 'excellent').length;
   const total = moves.length * 2;
+
+  // Game rating (like chess.com)
+  const calcRating = (acpl: number, blunders: number, mistakes: number, inaccuracies: number, totalMoves: number) => {
+    if (totalMoves === 0) return 0;
+    const base = 2200;
+    const acplPenalty = acpl * 1.5;
+    const blunderPenalty = blunders * 40;
+    const mistakePenalty = mistakes * 12;
+    const inaccuracyPenalty = inaccuracies * 4;
+    return Math.max(800, Math.round(base - acplPenalty - blunderPenalty - mistakePenalty - inaccuracyPenalty));
+  };
+  const whiteRating = calcRating(whiteACPL, wb, wm, wi, Math.ceil(total / 2));
+  const blackRating = calcRating(blackACPL, bb, bm, bi, Math.floor(total / 2));
 
   const curEval = evals[currentMoveIndex];
   const rawEvalCp = curEval?.eval ?? 0;
@@ -165,12 +194,13 @@ export default function AnalysePage() {
 
         {moves.length > 0 && (
           <div className="fade-in">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-4 stagger">
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-2 mb-4 stagger">
               {[
-                { v: whiteACPL, l: `${gameInfo?.white || 'White'} ACPL`, c: '' },
-                { v: blackACPL, l: `${gameInfo?.black || 'Black'} ACPL`, c: '' },
-                { v: `${wb}/${bb}`, l: 'Blunders (W/B)', c: 'text-[var(--red)]' },
-                { v: `${wm}/${bm}`, l: 'Mistakes (W/B)', c: 'text-[var(--amber)]' },
+                { v: whiteACPL, l: `${gameInfo?.white || 'W'} ACPL`, c: '' },
+                { v: blackACPL, l: `${gameInfo?.black || 'B'} ACPL`, c: '' },
+                { v: `${wb}/${bb}`, l: 'Blunders W/B', c: 'text-[var(--red)]' },
+                { v: `${wm}/${bm}`, l: 'Mistakes W/B', c: 'text-[var(--amber)]' },
+                { v: `${whiteRating}/${blackRating}`, l: 'Est. Rating', c: 'text-[var(--gold)]' },
               ].map((s) => (
                 <div key={s.l} className="stat py-2 md:py-3">
                   <div className={`text-lg md:text-xl font-[Playfair_Display] font-bold text-[var(--cream)] ${s.c}`}>{s.v}</div>
@@ -196,8 +226,15 @@ export default function AnalysePage() {
                       <ChessBoard pgn={pgn} currentMoveIndex={currentMoveIndex} orientation={flipped ? 'black' : 'white'} whiteName={gameInfo?.white} blackName={gameInfo?.black} />
                     </div>
                   </div>
-                  <div className="flex justify-center mt-2">
-                    <button onClick={() => setFlipped(!flipped)} className="text-xs px-3 py-1.5 rounded-md transition-colors hover:bg-[#111] text-[var(--cream-muted)] hover:text-[var(--cream-dim)]">↻ Flip Board</button>
+                  <div className="flex justify-between items-center mt-2">
+                    <button onClick={() => setCurrentMoveIndex(prev => Math.max(0, prev - 1))} disabled={currentMoveIndex === 0}
+                      className="text-xs px-3 py-1.5 rounded-md transition-colors hover:bg-[#111] text-[var(--cream-muted)] hover:text-[var(--cream-dim)] disabled:opacity-30">←</button>
+                    <div className="flex items-center gap-2">
+                      <button onClick={() => setFlipped(!flipped)} className="text-[10px] px-2 py-1 rounded transition-colors hover:bg-[#111] text-[var(--cream-muted)]">↻</button>
+                      <span className="mono text-[10px] text-[var(--cream-muted)]">{currentMoveIndex + 1}/{total}</span>
+                    </div>
+                    <button onClick={() => setCurrentMoveIndex(prev => Math.min(total - 1, prev + 1))} disabled={currentMoveIndex >= total - 1}
+                      className="text-xs px-3 py-1.5 rounded-md transition-colors hover:bg-[#111] text-[var(--cream-muted)] hover:text-[var(--cream-dim)] disabled:opacity-30">→</button>
                   </div>
                 </div>
                 <div className="card p-2 md:p-3">
