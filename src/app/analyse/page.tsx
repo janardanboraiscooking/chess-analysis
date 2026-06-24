@@ -2,6 +2,7 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import Link from 'next/link';
 import PgnUpload from '@/components/PgnUpload';
+import ImportGame from '@/components/ImportGame';
 import ChessBoard from '@/components/ChessBoard';
 import MoveList from '@/components/MoveList';
 import EvalGraph from '@/components/EvalGraph';
@@ -22,6 +23,7 @@ export default function AnalysePage() {
   const [savedGames, setSavedGames] = useState<AnalyzedGame[]>([]);
   const [activeTab, setActiveTab] = useState<'moves' | 'details'>('moves');
   const [flipped, setFlipped] = useState(false);
+  const [importMode, setImportMode] = useState(false);
   const workerRef = useRef<Worker | null>(null);
 
   useEffect(() => { getAllGames().then(setSavedGames).catch(() => {}); }, []);
@@ -116,6 +118,21 @@ export default function AnalysePage() {
               <p className="text-base text-[var(--cream-dim)]">Upload a PGN to get instant Stockfish analysis</p>
             </div>
             <PgnUpload onPgnSubmit={handlePgnSubmit} />
+            <div className="max-w-2xl mx-auto px-2 md:px-0 mt-4">
+              <div className="flex items-center gap-3">
+                <div className="flex-1 h-px bg-[#222]" />
+                <span className="text-xs text-[var(--cream-muted)]">or</span>
+                <div className="flex-1 h-px bg-[#222]" />
+              </div>
+              <button onClick={() => setImportMode(!importMode)} className="btn-outline w-full mt-4">
+                {importMode ? '← Back to Paste' : '📥 Import from Lichess / Chess.com'}
+              </button>
+            </div>
+            {importMode && (
+              <div className="mt-4">
+                <ImportGame onGameSelect={(pgn) => { setImportMode(false); handlePgnSubmit(pgn); }} />
+              </div>
+            )}
             {savedGames.length > 0 && (
               <div className="mt-12 max-w-2xl mx-auto">
                 <div className="gold-line w-8 mb-6" />
