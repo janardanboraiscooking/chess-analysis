@@ -24,6 +24,7 @@ export default function AnalysePage() {
   const [activeTab, setActiveTab] = useState<'moves' | 'details'>('moves');
   const [flipped, setFlipped] = useState(false);
   const [importMode, setImportMode] = useState(false);
+  const [engine, setEngine] = useState<'stockfish' | 'goatedchess'>('stockfish');
   const workerRef = useRef<Worker | null>(null);
 
   useEffect(() => { getAllGames().then(setSavedGames).catch(() => {}); }, []);
@@ -148,10 +149,28 @@ export default function AnalysePage() {
               <div className="gold-line w-12 mx-auto mb-6" />
               <h1 className="text-4xl font-bold mb-3 text-[var(--cream)]">Analyze a Game</h1>
               <p className="text-base text-[var(--cream-dim)]">Upload a PGN or import from Lichess/Chess.com</p>
-              <div className="mt-3 inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[var(--gold-glow)] border border-[var(--gold-dim)]">
-                <span className="text-xs text-[var(--gold)]">♚ GoatedChess Engine</span>
-                <span className="text-[10px] text-[var(--cream-muted)]">Under development — analysis powered by Stockfish</span>
+              
+              {/* Engine Selector */}
+              <div className="flex items-center justify-center gap-3 mt-4">
+                <span className="text-sm text-[var(--cream-muted)]">Engine:</span>
+                <div className="flex gap-1 p-1 rounded-lg bg-[#111] border border-[#222]">
+                  {(['stockfish', 'goatedchess'] as const).map((e) => (
+                    <button key={e} onClick={() => setEngine(e)}
+                      className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all ${
+                        engine === e 
+                          ? 'bg-[var(--gold)] text-[#0a0a0a] shadow-lg' 
+                          : 'text-[var(--cream-muted)] hover:text-[var(--cream-dim)]'
+                      }`}>
+                      {e === 'stockfish' ? '♟ Stockfish' : '♚ GoatedChess'}
+                    </button>
+                  ))}
+                </div>
               </div>
+              {engine === 'goatedchess' && (
+                <div className="mt-3 inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-orange-900/20 border border-orange-700/30">
+                  <span className="text-[10px] text-orange-400">⚠ Under development — GoatedChess analysis coming soon. Currently using Stockfish.</span>
+                </div>
+              )}
             </div>
             <PgnUpload onPgnSubmit={handlePgnSubmit} />
             <div className="max-w-2xl mx-auto px-2 md:px-0 mt-4">
