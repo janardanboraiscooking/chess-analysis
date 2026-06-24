@@ -147,7 +147,7 @@ function analyzeWithWorker(worker: Worker, fen: string, depth: number): Promise<
         const parsed = parseStockfishOutput(rawLines);
         // Stockfish asm.js returns eval from white's perspective always
         // No conversion needed — just use the raw value
-        resolve({ fen, eval: lastEval, bestMove: parsed.bestMove, pv: parsed.pv, depth });
+        resolve({ fen, eval: parsed.eval, bestMove: parsed.bestMove, pv: parsed.pv, depth });
       }
     };
 
