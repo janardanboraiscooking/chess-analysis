@@ -89,18 +89,21 @@ export default function AnalysePage() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [moves.length]);
 
-  // Game rating (like chess.com)
-  const calcRating = (acpl: number, blunders: number, mistakes: number, inaccuracies: number, totalMoves: number) => {
+  // Game rating based on accuracy, blunders, mistakes
+  const calcRating = (acpl: number, blunders: number, mistakes: number, inaccuracies: number, totalMoves: number, bestExcellent: number) => {
     if (totalMoves === 0) return 0;
-    const base = 2200;
-    const acplPenalty = acpl * 1.5;
-    const blunderPenalty = blunders * 40;
-    const mistakePenalty = mistakes * 12;
-    const inaccuracyPenalty = inaccuracies * 4;
-    return Math.max(800, Math.round(base - acplPenalty - blunderPenalty - mistakePenalty - inaccuracyPenalty));
+    // Accuracy = % of moves that were best/excellent/good
+    const goodMoves = bestExcellent + moves.filter(m => {
+      const cls = m.white?.classification || m.black?.classification;
+      return cls === 'good';
+    }).length;
+    const accuracy = Math.min(100, (goodMoves / totalMoves) * 100);
+    // Formula: base + accuracy bonus - penalties
+    const rating = 2000 + (accuracy - 50) * 18 - blunders * 30 - mistakes * 10;
+    return Math.max(800, Math.min(3200, Math.round(rating)));
   };
-  const whiteRating = calcRating(whiteACPL, wb, wm, wi, Math.ceil(total / 2));
-  const blackRating = calcRating(blackACPL, bb, bm, bi, Math.floor(total / 2));
+  const whiteRating = calcRating(whiteACPL, wb, wm, wi, Math.ceil(total / 2), wbe);
+  const blackRating = calcRating(blackACPL, bb, bm, bi, Math.floor(total / 2), bbe);
 
   const curEval = evals[currentMoveIndex];
   const rawEvalCp = curEval?.eval ?? 0;
