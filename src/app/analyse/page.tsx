@@ -28,22 +28,6 @@ export default function AnalysePage() {
 
   useEffect(() => { getAllGames().then(setSavedGames).catch(() => {}); }, []);
 
-  // Keyboard navigation
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (moves.length === 0) return;
-      if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
-        e.preventDefault();
-        setCurrentMoveIndex(prev => Math.max(0, prev - 1));
-      } else if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
-        e.preventDefault();
-        setCurrentMoveIndex(prev => Math.min(total - 1, prev + 1));
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [moves.length, total]);
-
   const initWorker = useCallback(() => {
     if (workerRef.current) return workerRef.current;
     const w = new Worker('/stockfish-worker.js');
@@ -88,6 +72,22 @@ export default function AnalysePage() {
   const wbe = moves.filter(m => m.white?.classification === 'best' || m.white?.classification === 'excellent').length;
   const bbe = moves.filter(m => m.black?.classification === 'best' || m.black?.classification === 'excellent').length;
   const total = moves.length * 2;
+
+  // Keyboard navigation
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (moves.length === 0) return;
+      if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+        e.preventDefault();
+        setCurrentMoveIndex(prev => Math.max(0, prev - 1));
+      } else if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+        e.preventDefault();
+        setCurrentMoveIndex(prev => Math.min(moves.length * 2 - 1, prev + 1));
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [moves.length]);
 
   // Game rating (like chess.com)
   const calcRating = (acpl: number, blunders: number, mistakes: number, inaccuracies: number, totalMoves: number) => {
