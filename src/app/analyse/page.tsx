@@ -165,11 +165,12 @@ export default function AnalysePage() {
 
         {moves.length > 0 && (
           <div className="fade-in">
-            <div className="grid grid-cols-3 md:grid-cols-6 gap-2 mb-4 stagger">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-4 stagger">
               {[
-                { v: whiteACPL, l: 'W ACPL', c: '' }, { v: blackACPL, l: 'B ACPL', c: '' },
-                { v: wb + bb, l: 'Blunders', c: 'text-[var(--red)]' }, { v: wm + bm, l: 'Mistakes', c: 'text-[var(--amber)]' },
-                { v: wi + bi, l: 'Inaccuracies', c: 'text-[var(--cream-dim)]' }, { v: wbe + bbe, l: 'Best/Exc', c: 'text-[var(--green)]' },
+                { v: whiteACPL, l: `${gameInfo?.white || 'White'} ACPL`, c: '' },
+                { v: blackACPL, l: `${gameInfo?.black || 'Black'} ACPL`, c: '' },
+                { v: `${wb}/${bb}`, l: 'Blunders (W/B)', c: 'text-[var(--red)]' },
+                { v: `${wm}/${bm}`, l: 'Mistakes (W/B)', c: 'text-[var(--amber)]' },
               ].map((s) => (
                 <div key={s.l} className="stat py-2 md:py-3">
                   <div className={`text-lg md:text-xl font-[Playfair_Display] font-bold text-[var(--cream)] ${s.c}`}>{s.v}</div>
@@ -224,10 +225,19 @@ export default function AnalysePage() {
                         {curMove.evalLoss > 0 && <> · Lost {curMove.evalLoss}cp</>}
                       </p>
                     )}
-                    {curMove.pv.length > 0 && (
+                    {curMove.classification !== 'excellent' && curMove.classification !== 'best' && (
+                      <p className="text-xs text-[var(--cream-dim)] mt-1">
+                        {curMove.classification === 'blunder' && `This move loses significant advantage. The engine prefers ${curMove.bestMove || 'a different move'} which maintains a stronger position.`}
+                        {curMove.classification === 'mistake' && `This move weakens the position. Better alternatives exist that keep more control.`}
+                        {curMove.classification === 'inaccuracy' && `Slightly inaccurate — a more precise move was available.`}
+                        {curMove.classification === 'good' && `Decent move, but not the engine's top choice.`}
+                      </p>
+                    )}
+                    {curMove.pv.length > 2 && (
                       <div className="mt-2 pv-line">
-                        <span className="text-[10px] uppercase tracking-wider text-[var(--cream-muted)]">Line: </span>
-                        {curMove.pv.slice(0, 8).map((m, i) => <span key={i} className="pv-move">{m} </span>)}
+                        <span className="text-[10px] uppercase tracking-wider text-[var(--cream-muted)]">Engine line: </span>
+                        {curMove.pv.slice(0, 6).map((m, i) => <span key={i} className="pv-move">{m} </span>)}
+                        <span className="text-[var(--cream-muted)]">...</span>
                       </div>
                     )}
                   </div>
@@ -257,19 +267,23 @@ export default function AnalysePage() {
                         </div>
                         <div className="h-px bg-[#222]" />
                         <div>
-                          <h4 className="text-xs font-semibold mb-2 uppercase tracking-wider text-[var(--cream-muted)]">Breakdown</h4>
-                          <div className="grid grid-cols-2 gap-2 text-xs">
+                          <h4 className="text-xs font-semibold mb-2 uppercase tracking-wider text-[var(--cream-muted)]">Move Breakdown</h4>
+                          <div className="space-y-1 text-xs">
                             {[
-                              ['Best', moves.filter(m => m.white?.classification === 'best' || m.black?.classification === 'best').length, 'text-[var(--green)]'],
-                              ['Excellent', moves.filter(m => m.white?.classification === 'excellent' || m.black?.classification === 'excellent').length, 'text-[var(--green)]'],
-                              ['Good', moves.filter(m => m.white?.classification === 'good' || m.black?.classification === 'good').length, 'text-[var(--cream-dim)]'],
-                              ['Inaccuracy', wi + bi, 'text-[var(--amber)]'],
-                              ['Mistake', wm + bm, 'text-[#e05545]'],
-                              ['Blunder', wb + bb, 'text-[var(--red)]'],
-                            ].map(([l, v, c]) => (
-                              <div key={l} className="flex justify-between"><span className="text-[var(--cream-dim)]">{l}</span><span className={`mono ${c}`}>{v}</span></div>
+                              ['Best', moves.filter(m => m.white?.classification === 'best').length, moves.filter(m => m.black?.classification === 'best').length, 'text-[var(--green)]'],
+                              ['Excellent', moves.filter(m => m.white?.classification === 'excellent').length, moves.filter(m => m.black?.classification === 'excellent').length, 'text-[var(--green)]'],
+                              ['Good', moves.filter(m => m.white?.classification === 'good').length, moves.filter(m => m.black?.classification === 'good').length, 'text-[var(--cream-dim)]'],
+                              ['Inaccuracy', wi, bi, 'text-[var(--amber)]'],
+                              ['Mistake', wm, bm, 'text-[#e05545]'],
+                              ['Blunder', wb, bb, 'text-[var(--red)]'],
+                            ].map(([label, wCount, bCount, c]) => (
+                              <div key={label} className="flex justify-between items-center">
+                                <span className="text-[var(--cream-dim)]">{label}</span>
+                                <span className={`mono ${c}`}>{wCount} / {bCount}</span>
+                              </div>
                             ))}
                           </div>
+                          <p className="text-[10px] text-[var(--cream-muted)] mt-2">White / Black</p>
                         </div>
                       </div>
                     )}
