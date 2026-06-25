@@ -157,44 +157,6 @@ function analyzeWithWorker(worker: Worker, fen: string, depth: number): Promise<
   });
 }
 
-// Lichess cloud eval — free, depth 70+, 1 req/sec rate limit
-let lichessQueue: (() => void)[] = [];
-let lichessProcessing = false;
-
-async function processLichessQueue() {
-  if (lichessProcessing) return;
-  lichessProcessing = true;
-  while (lichessQueue.length > 0) {
-    const next = lichessQueue.shift()!;
-    next();
-    if (lichessQueue.length > 0) await new Promise(r => setTimeout(r, 1050));
-  }
-  lichessProcessing = false;
-}
-
-function analyzeWithLichess(fen: string): Promise<PositionEval | null> {
-  return new Promise((resolve) => {
-    const task = async () => {
-      try {
-        const encoded = encodeURIComponent(fen);
-        const res = await fetch(`https://lichess.org/api/cloud-eval?fen=${encoded}&multiPv=1`);
-        if (!res.ok) { resolve(null); return; }
-        const data = await res.json();
-        const pv = data.pvs?.[0];
-        if (!pv) { resolve(null); return; }
-        const evalCp = pv.cp ?? (pv.mate ? (pv.mate > 0 ? 30000 - pv.mate * 2 : -30000 - Math.abs(pv.mate) * 2) : 0);
-        const bestMove = pv.moves?.split(' ')[0] || '';
-        const pvMoves = pv.moves?.split(' ') || [];
-        resolve({ fen, eval: evalCp, bestMove, pv: pvMoves, depth: data.depth || 0 });
-      } catch {
-        resolve(null);
-      }
-    };
-    lichessQueue.push(task);
-    processLichessQueue();
-  });
-}
-
 // Stockfish.online API — free, no rate limit, depth up to 15
 async function analyzeWithStockfishOnline(fen: string): Promise<PositionEval | null> {
   try {
@@ -252,19 +214,13 @@ export async function analyzeGame(
       }
 
       try {
-        // Tier 1: Lichess cloud (depth 70+, 1 req/sec)
-        const cloud = await analyzeWithLichess(positions[i]);
-        if (cloud && cloud.depth >= 20) {
-          evals[i] = cloud;
+        // Primary: Stockfish.online (depth 15, no rate limit)
+        const online = await analyzeWithStockfishOnline(positions[i]);
+        if (online) {
+          evals[i] = online;
         } else {
-          // Tier 2: Stockfish.online (depth 15, no rate limit)
-          const online = await analyzeWithStockfishOnline(positions[i]);
-          if (online) {
-            evals[i] = online;
-          } else {
-            // Tier 3: Local Stockfish (depth 16)
-            evals[i] = await analyzeWithWorker(workers[workerIdx], positions[i], depth);
-          }
+          // Fallback: local Stockfish (depth 16)
+          evals[i] = await analyzeWithWorker(workers[workerIdx], positions[i], depth);
         }
       } catch {
         const fallback = evals[Math.max(0, i - 1)] ?? { fen: positions[i], eval: 0, bestMove: '', pv: [], depth };
