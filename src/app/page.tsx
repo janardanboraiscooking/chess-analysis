@@ -58,7 +58,7 @@ export default function Home() {
             <div className="card p-6">
               <h3 className="text-lg font-semibold mb-3 text-[var(--cream)]">How it works</h3>
               <ul className="space-y-2 text-sm text-[var(--cream-dim)]">
-                {['PGN is parsed into individual positions', '16 Stockfish workers analyze in parallel', 'Each position evaluated at depth 14', 'Moves classified by win% delta (Lichess algorithm)'].map((t, i) => (
+                {['PGN is parsed into individual positions', 'Lichess cloud eval (depth 70+) + Stockfish.online (depth 15) + local fallback', '5 parallel workers for fast analysis', 'Moves classified by win% delta (Lichess algorithm)'].map((t, i) => (
                   <li key={i} className="flex gap-2"><span className="text-[var(--gold)]">→</span>{t}</li>
                 ))}
               </ul>
