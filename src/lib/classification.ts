@@ -32,10 +32,10 @@ export function classifyMove(
   const winAfter = winningChances(povAfter);
   const delta = winBefore - winAfter;
 
-  // Wide thresholds for depth 12 — avoid false positives
-  if (delta >= 30) return 'blunder';
-  if (delta >= 20) return 'mistake';
-  if (delta >= 12) return 'inaccuracy';
-  if (delta >= 4) return 'good';
+  // Chess.com-style thresholds
+  if (delta >= 12) return 'blunder';
+  if (delta >= 6) return 'mistake';
+  if (delta >= 3) return 'inaccuracy';
+  if (delta >= 1) return 'good';
   return 'excellent';
 }
