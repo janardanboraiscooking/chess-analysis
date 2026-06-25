@@ -20,6 +20,8 @@ export default function AnalysePage() {
   const [progress, setProgress] = useState<{current: number; total: number; status: 'idle'|'analyzing'|'done'|'error'; currentMove: string}>({ current: 0, total: 0, status: 'idle', currentMove: '' });
   const [whiteACPL, setWhiteACPL] = useState(0);
   const [blackACPL, setBlackACPL] = useState(0);
+  const [whiteAccuracy, setWhiteAccuracy] = useState(0);
+  const [blackAccuracy, setBlackAccuracy] = useState(0);
   const [savedGames, setSavedGames] = useState<AnalyzedGame[]>([]);
   const [activeTab, setActiveTab] = useState<'moves' | 'details'>('moves');
   const [flipped, setFlipped] = useState(false);
@@ -54,8 +56,8 @@ export default function AnalysePage() {
       await analyzeGame(parsed.positions, parsed.sanMoves, parsed.moves, worker, 12, {
         onProgress: (c, t, m) => setProgress({ current: c, total: t, status: 'analyzing', currentMove: m }),
         onPositionEval: (i, e) => { le[i] = e; setEvals([...le]); },
-        onComplete: (am, wA, bA) => {
-          setMoves(am); setWhiteACPL(wA); setBlackACPL(bA);
+        onComplete: (am, wA, bA, wAcc, bAcc) => {
+          setMoves(am); setWhiteACPL(wA); setBlackACPL(bA); setWhiteAccuracy(wAcc); setBlackAccuracy(bAcc);
           setProgress((p) => ({ ...p, status: 'done' }));
           saveGame({ id: Date.now().toString(), whiteName: parsed.whiteName, blackName: parsed.blackName, result: parsed.result, moves: am, whiteACPL: wA, blackACPL: bA, totalMoves: parsed.sanMoves.length, analyzedAt: Date.now() }).then(() => getAllGames().then(setSavedGames).catch(() => {}));
         },
@@ -90,21 +92,20 @@ export default function AnalysePage() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [moves.length]);
 
-  // Game rating — ACPL is the primary factor
-  const calcRating = (acpl: number, blunders: number, mistakes: number) => {
-    // ACPL directly maps to rating range
-    // ACPL 0-20 = GM (2600-2800)
-    // ACPL 20-50 = Strong (2000-2500)
-    // ACPL 50-100 = Club (1500-2000)
-    // ACPL 100-200 = Intermediate (1000-1500)
-    // ACPL 200+ = Beginner (<1000)
-    const acplRating = Math.max(800, 2600 - acpl * 2);
-    const blunderPenalty = blunders * 40;
-    const mistakePenalty = mistakes * 10;
-    return Math.max(800, Math.min(3000, Math.round(acplRating - blunderPenalty - mistakePenalty)));
+  // Game rating — accuracy-based (chess.com style)
+  const calcRating = (accuracy: number, blunders: number, mistakes: number) => {
+    // accuracy 0-1 (1 = perfect play)
+    // Map accuracy to rating range:
+    //   100% → ~2500+, 95% → ~2200, 90% → ~2000
+    //   85% → ~1800, 80% → ~1600, 75% → ~1400
+    //   70% → ~1200, 65% → ~1000
+    const baseRating = 400 + accuracy * 2100;
+    const blunderPenalty = blunders * 30;
+    const mistakePenalty = mistakes * 8;
+    return Math.max(800, Math.min(3000, Math.round(baseRating - blunderPenalty - mistakePenalty)));
   };
-  const whiteRating = calcRating(whiteACPL, wb, wm);
-  const blackRating = calcRating(blackACPL, bb, bm);
+  const whiteRating = calcRating(whiteAccuracy, wb, wm);
+  const blackRating = calcRating(blackAccuracy, bb, bm);
 
   const curEval = evals[currentMoveIndex];
   const rawEvalCp = curEval?.eval ?? 0;
@@ -222,8 +223,8 @@ export default function AnalysePage() {
           <div className="fade-in">
             <div className="grid grid-cols-2 md:grid-cols-5 gap-2 mb-4 stagger">
               {[
-                { v: whiteACPL, l: `${gameInfo?.white || 'W'} ACPL`, c: '' },
-                { v: blackACPL, l: `${gameInfo?.black || 'B'} ACPL`, c: '' },
+                { v: `${Math.round(whiteAccuracy * 100)}%`, l: `${gameInfo?.white || 'W'} Accuracy`, c: '' },
+                { v: `${Math.round(blackAccuracy * 100)}%`, l: `${gameInfo?.black || 'B'} Accuracy`, c: '' },
                 { v: `${wb}/${bb}`, l: 'Blunders W/B', c: 'text-[var(--red)]' },
                 { v: `${wm}/${bm}`, l: 'Mistakes W/B', c: 'text-[var(--amber)]' },
                 { v: `${whiteRating}/${blackRating}`, l: 'Est. Rating', c: 'text-[var(--gold)]' },
@@ -320,13 +321,13 @@ export default function AnalysePage() {
                       <div className="space-y-4">
                         <div>
                           <h4 className="text-xs font-semibold mb-2 uppercase tracking-wider text-[var(--cream-muted)]">{gameInfo?.white || 'White'} Accuracy</h4>
-                          <div className="w-full rounded-full h-2 bg-[#111]"><div className="h-2 rounded-full bg-[var(--green)]" style={{ width: `${total > 0 ? (wbe / (total / 2)) * 100 : 0}%` }} /></div>
-                          <p className="mono text-xs mt-1 text-[var(--cream-muted)]">{wbe}/{total / 2} best/excellent</p>
+                          <div className="w-full rounded-full h-2 bg-[#111]"><div className="h-2 rounded-full bg-[var(--green)]" style={{ width: `${Math.round(whiteAccuracy * 100)}%` }} /></div>
+                          <p className="mono text-xs mt-1 text-[var(--cream-muted)]">{Math.round(whiteAccuracy * 100)}% ({wbe}/{total / 2} best/excellent)</p>
                         </div>
                         <div>
                           <h4 className="text-xs font-semibold mb-2 uppercase tracking-wider text-[var(--cream-muted)]">{gameInfo?.black || 'Black'} Accuracy</h4>
-                          <div className="w-full rounded-full h-2 bg-[#111]"><div className="h-2 rounded-full bg-[var(--green)]" style={{ width: `${total > 0 ? (bbe / (total / 2)) * 100 : 0}%` }} /></div>
-                          <p className="mono text-xs mt-1 text-[var(--cream-muted)]">{bbe}/{total / 2} best/excellent</p>
+                          <div className="w-full rounded-full h-2 bg-[#111]"><div className="h-2 rounded-full bg-[var(--green)]" style={{ width: `${Math.round(blackAccuracy * 100)}%` }} /></div>
+                          <p className="mono text-xs mt-1 text-[var(--cream-muted)]">{Math.round(blackAccuracy * 100)}% ({bbe}/{total / 2} best/excellent)</p>
                         </div>
                         <div className="h-px bg-[#222]" />
                         <div>

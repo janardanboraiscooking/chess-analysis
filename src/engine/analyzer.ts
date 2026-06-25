@@ -67,7 +67,7 @@ export function buildAnalysisResult(evals: PositionEval[], sanMoves: string[], u
 export interface AnalysisCallbacks {
   onProgress: (current: number, total: number, move: string) => void;
   onPositionEval: (index: number, eval_: PositionEval) => void;
-  onComplete: (moves: AnalyzedMove[], whiteACPL: number, blackACPL: number) => void;
+  onComplete: (moves: AnalyzedMove[], whiteACPL: number, blackACPL: number, whiteAccuracy: number, blackAccuracy: number) => void;
   onError: (error: string) => void;
 }
 
@@ -218,10 +218,12 @@ export async function analyzeGame(
       if (m.black) entries.push({ evalLoss: m.black.evalLoss, isBlack: true });
       return entries;
     });
-    const { calculateACPL } = await import('@/lib/acpl');
+    const { calculateACPL, calculateAccuracy } = await import('@/lib/acpl');
     const whiteACPL = calculateACPL(allEvalLosses, false);
     const blackACPL = calculateACPL(allEvalLosses, true);
-    callbacks.onComplete(analyzedMoves, whiteACPL, blackACPL);
+    const whiteAccuracy = calculateAccuracy(allEvalLosses, false);
+    const blackAccuracy = calculateAccuracy(allEvalLosses, true);
+    callbacks.onComplete(analyzedMoves, whiteACPL, blackACPL, whiteAccuracy, blackAccuracy);
   } catch {
     callbacks.onError('Failed to build results');
   }
