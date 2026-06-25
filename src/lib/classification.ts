@@ -32,10 +32,10 @@ export function classifyMove(
   const winAfter = winningChances(povAfter);
   const delta = winBefore - winAfter;
 
-  // Chess.com-style thresholds
-  if (delta >= 12) return 'blunder';
-  if (delta >= 6) return 'mistake';
-  if (delta >= 3) return 'inaccuracy';
-  if (delta >= 1) return 'good';
+  // Thresholds calibrated for depth 12 Stockfish analysis
+  if (delta >= 20) return 'blunder';
+  if (delta >= 10) return 'mistake';
+  if (delta >= 5) return 'inaccuracy';
+  if (delta >= 2) return 'good';
   return 'excellent';
 }
