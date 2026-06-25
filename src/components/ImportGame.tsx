@@ -58,13 +58,13 @@ export default function ImportGame({ onGameSelect }: ImportGameProps) {
         const archivesRes = await fetch(`https://api.chess.com/pub/player/${username.trim().toLowerCase()}/games/archives`);
         if (!archivesRes.ok) throw new Error('User not found');
         const archives = await archivesRes.json();
-        const latestArchive = archives.archives?.pop();
+        const latestArchive = archives.archives?.[archives.archives.length - 1];
         if (!latestArchive) throw new Error('No games found');
         const gamesRes = await fetch(`${latestArchive}/pgn`);
         const pgnText = await gamesRes.text();
         // Parse chess.com PGN (multiple games separated by blank lines)
         const gamePgnBlocks = pgnText.split(/\n\n\n/).filter(b => b.trim().length > 50);
-        const parsed: Game[] = gamePgnBlocks.slice(-20).reverse().map((block, i) => {
+        const parsed: Game[] = gamePgnBlocks.slice(0, 20).map((block, i) => {
           const whiteMatch = block.match(/\[White\s+"([^"]*)"\]/);
           const blackMatch = block.match(/\[Black\s+"([^"]*)"\]/);
           const resultMatch = block.match(/\[Result\s+"([^"]*)"\]/);
