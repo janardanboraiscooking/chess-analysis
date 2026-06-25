@@ -157,11 +157,23 @@ function analyzeWithWorker(worker: Worker, fen: string, depth: number): Promise<
   });
 }
 
-// Stockfish.online API — free, no rate limit, depth up to 15
+// Stockfish.online API — free, depth up to 15, needs spacing between requests
+let lastCloudRequest = 0;
+const CLOUD_DELAY_MS = 600;
+
 async function analyzeWithStockfishOnline(fen: string): Promise<PositionEval | null> {
+  // Respect rate limit — space requests
+  const now = Date.now();
+  const wait = CLOUD_DELAY_MS - (now - lastCloudRequest);
+  if (wait > 0) await new Promise(r => setTimeout(r, wait));
+  lastCloudRequest = Date.now();
+
   try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 8000);
     const encoded = encodeURIComponent(fen);
-    const res = await fetch(`https://stockfish.online/api/s/v2.php?fen=${encoded}&depth=15`);
+    const res = await fetch(`https://stockfish.online/api/s/v2.php?fen=${encoded}&depth=15`, { signal: controller.signal });
+    clearTimeout(timeout);
     if (!res.ok) return null;
     const data = await res.json();
     if (!data.success) return null;
@@ -214,12 +226,16 @@ export async function analyzeGame(
       }
 
       try {
-        // Primary: Stockfish.online (depth 15, no rate limit)
-        const online = await analyzeWithStockfishOnline(positions[i]);
-        if (online) {
-          evals[i] = online;
+        // Only worker 0 uses cloud API (serialized to avoid rate limits)
+        // Workers 1-4 always use local Stockfish for parallel speed
+        if (workerIdx === 0) {
+          const online = await analyzeWithStockfishOnline(positions[i]);
+          if (online) {
+            evals[i] = online;
+          } else {
+            evals[i] = await analyzeWithWorker(workers[workerIdx], positions[i], depth);
+          }
         } else {
-          // Fallback: local Stockfish (depth 16)
           evals[i] = await analyzeWithWorker(workers[workerIdx], positions[i], depth);
         }
       } catch {
