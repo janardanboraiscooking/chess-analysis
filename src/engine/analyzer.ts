@@ -212,17 +212,17 @@ export async function analyzeGame(
 
   try {
     const analyzedMoves = buildAnalysisResult(evals, sanMoves, uciMoves);
-    const allEvalData = analyzedMoves.flatMap(m => {
+    const allEvalLosses = analyzedMoves.flatMap(m => {
       const entries = [];
-      if (m.white) entries.push({ evalBefore: m.white.evalBefore, evalAfter: m.white.evalAfter, isBlack: false });
-      if (m.black) entries.push({ evalBefore: m.black.evalBefore, evalAfter: m.black.evalAfter, isBlack: true });
+      if (m.white) entries.push({ evalLoss: m.white.evalLoss, isBlack: false });
+      if (m.black) entries.push({ evalLoss: m.black.evalLoss, isBlack: true });
       return entries;
     });
     const { calculateACPL, calculateAccuracy } = await import('@/lib/acpl');
-    const whiteACPL = calculateACPL(allEvalData.map(e => ({ evalLoss: Math.max(0, (e.isBlack ? -e.evalBefore : e.evalBefore) - (e.isBlack ? -e.evalAfter : e.evalAfter)), isBlack: e.isBlack })), false);
-    const blackACPL = calculateACPL(allEvalData.map(e => ({ evalLoss: Math.max(0, (e.isBlack ? -e.evalBefore : e.evalBefore) - (e.isBlack ? -e.evalAfter : e.evalAfter)), isBlack: e.isBlack })), true);
-    const whiteAccuracy = calculateAccuracy(allEvalData, false);
-    const blackAccuracy = calculateAccuracy(allEvalData, true);
+    const whiteACPL = calculateACPL(allEvalLosses, false);
+    const blackACPL = calculateACPL(allEvalLosses, true);
+    const whiteAccuracy = calculateAccuracy(allEvalLosses, false);
+    const blackAccuracy = calculateAccuracy(allEvalLosses, true);
     callbacks.onComplete(analyzedMoves, whiteACPL, blackACPL, whiteAccuracy, blackAccuracy);
   } catch {
     callbacks.onError('Failed to build results');
