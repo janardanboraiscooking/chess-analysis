@@ -117,21 +117,17 @@ export default function AnalysePage() {
               <h1 className="text-4xl md:text-5xl mb-3" style={{ fontFamily: 'Instrument Serif' }}>Analyze a Game</h1>
               <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>Upload a PGN or import from Lichess / Chess.com</p>
             </div>
-            <PgnUpload onPgnSubmit={handlePgnSubmit} />
-            <div className="max-w-2xl mx-auto px-2 mt-4">
-              <div className="flex items-center gap-3">
-                <div className="flex-1 h-px" style={{ background: 'var(--border)' }} />
-                <span className="text-xs" style={{ color: 'var(--text-muted)' }}>or</span>
-                <div className="flex-1 h-px" style={{ background: 'var(--border)' }} />
-              </div>
-              <button onClick={() => setImportMode(!importMode)} className="btn-secondary w-full mt-4">
+            <div className="max-w-2xl mx-auto px-2 mb-6">
+              <button onClick={() => setImportMode(!importMode)} className="btn-secondary w-full">
                 {importMode ? '← Back to Paste' : 'Import from Lichess / Chess.com'}
               </button>
             </div>
-            {importMode && (
-              <div className="mt-4 max-w-2xl mx-auto">
+            {importMode ? (
+              <div className="max-w-2xl mx-auto">
                 <ImportGame onGameSelect={(pgn) => { setImportMode(false); handlePgnSubmit(pgn); }} />
               </div>
+            ) : (
+              <PgnUpload onPgnSubmit={handlePgnSubmit} />
             )}
             {savedGames.length > 0 && (
               <div className="mt-12 max-w-2xl mx-auto">
