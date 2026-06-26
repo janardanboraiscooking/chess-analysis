@@ -161,9 +161,6 @@ export default function PuzzlesPage() {
                   }}
                   customDarkSquareStyle={{ backgroundColor: '#2a2a2a' }}
                   customLightSquareStyle={{ backgroundColor: '#404040' }}
-                  customSquareStyles={{
-                    transition: 'all 0.1s',
-                  }}
                 />
               </div>
             </div>
