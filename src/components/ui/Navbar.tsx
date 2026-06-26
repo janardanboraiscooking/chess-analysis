@@ -61,8 +61,10 @@ export default function Navbar() {
           </nav>
 
           <div className="hidden md:flex items-center gap-2">
-            <Link href="/signin" className="btn-ghost btn-sm">Sign in</Link>
-            <Link href="/signup" className="btn-primary btn-sm">Get Started</Link>
+            <Link href="/analyse" className="btn-primary btn-sm">
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M13 13L10 10M6 11A5 5 0 106 1a5 5 0 000 10z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>
+              Analyze
+            </Link>
           </div>
 
           <button onClick={() => setMobileOpen(!mobileOpen)} className="md:hidden btn-ghost p-2">
