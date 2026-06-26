@@ -93,15 +93,18 @@ export default function ImportGame({ onGameSelect }: ImportGameProps) {
 
   return (
     <div className="max-w-2xl mx-auto px-2 md:px-0">
-      <div className="card p-4 md:p-6">
-        <h3 className="text-lg font-semibold mb-4 text-[var(--cream)] font-[Playfair_Display]">Import Game</h3>
+      <div className="surface p-5">
+        <h3 className="text-sm font-semibold mb-4" style={{ color: 'var(--text)', fontFamily: 'Inter' }}>Import Game</h3>
 
         <div className="flex gap-2 mb-4">
           {(['lichess', 'chesscom'] as const).map(p => (
             <button key={p} onClick={() => setPlatform(p)}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                platform === p ? 'bg-[var(--gold)] text-[#0a0a0a]' : 'bg-[#111] text-[var(--cream-dim)] hover:bg-[#1a1a1a]'
-              }`}>
+              className="px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200"
+              style={{
+                background: platform === p ? 'var(--gradient-gold)' : 'var(--bg-subtle)',
+                color: platform === p ? '#09090b' : 'var(--text-secondary)',
+                border: `1px solid ${platform === p ? 'transparent' : 'var(--border)'}`,
+              }}>
               {p === 'lichess' ? 'Lichess' : 'Chess.com'}
             </button>
           ))}
@@ -114,34 +117,34 @@ export default function ImportGame({ onGameSelect }: ImportGameProps) {
             onChange={(e) => setUsername(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && fetchGames()}
             placeholder={platform === 'lichess' ? 'Lichess username' : 'Chess.com username'}
-            className="input flex-1"
+            className="input-field flex-1"
           />
-          <button onClick={fetchGames} disabled={loading || !username.trim()} className="btn px-6">
+          <button onClick={fetchGames} disabled={loading || !username.trim()} className="btn-primary px-6 disabled:opacity-30">
             {loading ? '...' : 'Fetch'}
           </button>
         </div>
 
-        {error && <p className="text-sm text-[var(--red)] mt-2">{error}</p>}
+        {error && <p className="text-sm mt-2" style={{ color: 'var(--accent-red)' }}>{error}</p>}
 
         {games.length > 0 && (
           <div className="mt-4 space-y-2 max-h-[400px] overflow-y-auto">
             {games.map((game) => (
               <div key={game.id}
                 onClick={() => onGameSelect(game.pgn)}
-                className="card p-3 flex justify-between items-center cursor-pointer hover:border-[var(--gold-dim)] transition-colors">
+                className="surface surface-hover p-3 flex justify-between items-center cursor-pointer">
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
-                    <span className="font-medium text-sm text-[var(--cream)] truncate">{game.white}</span>
-                    <span className="text-xs text-[var(--cream-muted)]">vs</span>
-                    <span className="font-medium text-sm text-[var(--cream)] truncate">{game.black}</span>
+                    <span className="text-sm font-medium truncate" style={{ color: 'var(--text)' }}>{game.white}</span>
+                    <span className="text-xs" style={{ color: 'var(--text-muted)' }}>vs</span>
+                    <span className="text-sm font-medium truncate" style={{ color: 'var(--text)' }}>{game.black}</span>
                   </div>
                   <div className="flex items-center gap-2 mt-1">
-                    <span className="mono text-[10px] px-1.5 py-0.5 rounded bg-[#111] text-[var(--cream-muted)]">{game.result}</span>
-                    <span className="text-[10px] text-[var(--cream-muted)]">{game.date}</span>
-                    {game.timeControl && <span className="text-[10px] text-[var(--cream-muted)]">{game.timeControl}</span>}
+                    <span className="mono text-[10px] px-1.5 py-0.5 rounded" style={{ background: 'var(--bg-subtle)', color: 'var(--text-muted)' }}>{game.result}</span>
+                    <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>{game.date}</span>
+                    {game.timeControl && <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>{game.timeControl}</span>}
                   </div>
                 </div>
-                <span className="text-[var(--gold)] text-sm shrink-0">→</span>
+                <span className="text-sm shrink-0" style={{ color: 'var(--gold)' }}>→</span>
               </div>
             ))}
           </div>

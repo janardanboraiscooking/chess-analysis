@@ -17,12 +17,12 @@ export default function EvalGraph({ evals, currentMoveIndex, onMoveClick, flippe
     labels: evals.map((_, i) => i.toString()),
     datasets: [{
       data: evals.map(e => flipped ? -(e.eval / 100) : e.eval / 100),
-      borderColor: '#c9a84c',
-      backgroundColor: 'rgba(201,168,76,0.06)',
+      borderColor: '#e8c547',
+      backgroundColor: 'rgba(232,197,71,0.06)',
       fill: true, tension: 0.4, borderWidth: 1.5,
       pointRadius: evals.map((_, i) => i === currentMoveIndex ? 4 : 0),
-      pointBackgroundColor: '#c9a84c',
-      pointBorderColor: '#0a0a0a',
+      pointBackgroundColor: '#e8c547',
+      pointBorderColor: '#141418',
       pointBorderWidth: 2,
     }],
   };
@@ -32,14 +32,14 @@ export default function EvalGraph({ evals, currentMoveIndex, onMoveClick, flippe
     onClick: (_: any, el: any) => { if (el.length > 0) onMoveClick(el[0].index); },
     scales: {
       x: { display: false },
-      y: { min: -20, max: 20, grid: { color: 'rgba(255,255,255,0.04)', drawBorder: false }, ticks: { color: '#6b6358', font: { family: 'JetBrains Mono', size: 10 }, callback: (v: any) => `${v > 0 ? '+' : ''}${v.toFixed(0)}` }, border: { display: false } },
+      y: { min: -20, max: 20, grid: { color: 'rgba(255,255,255,0.04)', drawBorder: false }, ticks: { color: '#52525b', font: { family: 'JetBrains Mono', size: 10 }, callback: (v: any) => `${v > 0 ? '+' : ''}${v.toFixed(0)}` }, border: { display: false } },
     },
-    plugins: { legend: { display: false }, tooltip: { backgroundColor: '#161616', borderColor: '#333', borderWidth: 1, titleFont: { family: 'JetBrains Mono', size: 11 }, bodyFont: { family: 'JetBrains Mono', size: 11 }, padding: 8, cornerRadius: 6, callbacks: { label: (ctx: any) => `${ctx.parsed.y > 0 ? '+' : ''}${ctx.parsed.y.toFixed(2)}` } } },
+    plugins: { legend: { display: false }, tooltip: { backgroundColor: '#1a1a1f', borderColor: 'rgba(255,255,255,0.1)', borderWidth: 1, titleFont: { family: 'JetBrains Mono', size: 11 }, bodyFont: { family: 'JetBrains Mono', size: 11 }, padding: 8, cornerRadius: 8, callbacks: { label: (ctx: any) => `${ctx.parsed.y > 0 ? '+' : ''}${ctx.parsed.y.toFixed(2)}` } } },
   };
 
   return (
     <div>
-      <h3 className="text-sm font-semibold mb-2 text-[var(--cream-dim)] font-[Playfair_Display]">Evaluation</h3>
+      <h3 className="text-xs font-semibold mb-2 uppercase tracking-wider" style={{ color: 'var(--text-muted)', fontFamily: 'Inter' }}>Evaluation</h3>
       <div className="h-28"><Line data={data} options={options} /></div>
     </div>
   );

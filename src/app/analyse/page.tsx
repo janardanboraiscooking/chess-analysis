@@ -26,7 +26,6 @@ export default function AnalysePage() {
   const [activeTab, setActiveTab] = useState<'moves' | 'details'>('moves');
   const [flipped, setFlipped] = useState(false);
   const [importMode, setImportMode] = useState(false);
-  const [engine, setEngine] = useState<'stockfish' | 'goatedchess'>('stockfish');
   const workerRef = useRef<Worker | null>(null);
 
   useEffect(() => { getAllGames().then(setSavedGames).catch(() => {}); }, []);
@@ -76,29 +75,17 @@ export default function AnalysePage() {
   const bbe = moves.filter(m => m.black?.classification === 'best' || m.black?.classification === 'excellent').length;
   const total = moves.length * 2;
 
-  // Keyboard navigation
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (moves.length === 0) return;
-      if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
-        e.preventDefault();
-        setCurrentMoveIndex(prev => Math.max(0, prev - 1));
-      } else if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
-        e.preventDefault();
-        setCurrentMoveIndex(prev => Math.min(moves.length * 2 - 1, prev + 1));
-      }
+      if (e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLInputElement) return;
+      if (e.key === 'ArrowLeft') { e.preventDefault(); setCurrentMoveIndex(prev => Math.max(0, prev - 1)); }
+      if (e.key === 'ArrowRight') { e.preventDefault(); setCurrentMoveIndex(prev => Math.min(total - 1, prev + 1)); }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [moves.length]);
+  }, [total]);
 
-  // Game rating — accuracy-based (chess.com style)
   const calcRating = (accuracy: number, blunders: number, mistakes: number) => {
-    // accuracy 0-1 (1 = perfect play)
-    // Map accuracy to rating range:
-    //   100% → ~2500+, 95% → ~2200, 90% → ~2000
-    //   85% → ~1800, 80% → ~1600, 75% → ~1400
-    //   70% → ~1200, 65% → ~1000
     const baseRating = 400 + accuracy * 2100;
     const blunderPenalty = blunders * 30;
     const mistakePenalty = mistakes * 8;
@@ -121,93 +108,50 @@ export default function AnalysePage() {
   const reset = () => { setPgn(''); setMoves([]); setEvals([]); setCurrentMoveIndex(0); setGameInfo(null); setFlipped(false); setProgress({ current: 0, total: 0, status: 'idle', currentMove: '' }); };
 
   return (
-    <main className="min-h-screen bg-[#0a0a0a]">
-      <header className="border-b border-[#222] bg-[#0a0a0a]">
-        <div className="max-w-7xl mx-auto px-6 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <Link href="/" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
-              <div className="w-7 h-7 rounded-lg flex items-center justify-center bg-[var(--gold)] text-[#0a0a0a]">
-                <span className="text-sm font-bold font-[Playfair_Display]">♚</span>
-              </div>
-              <span className="text-base font-semibold text-[var(--cream)] font-[Playfair_Display]">GoatedChess</span>
-            </Link>
-            <span className="text-sm text-[var(--cream-muted)]">/</span>
-            <span className="text-sm text-[var(--cream-dim)]">Analyze</span>
-          </div>
-          {gameInfo && (
-            <div className="flex items-center gap-4 text-sm">
-              <span className="text-[var(--cream-dim)]">{gameInfo.white} vs {gameInfo.black}</span>
-              <span className="mono px-2 py-0.5 rounded text-xs bg-[#111] text-[var(--cream-muted)]">{gameInfo.result}</span>
-            </div>
-          )}
-        </div>
-      </header>
-
-      <div className="max-w-7xl mx-auto px-6 py-6">
+    <main className="min-h-screen" style={{ background: 'var(--bg)' }}>
+      <div className="max-w-7xl mx-auto px-6 pt-20 pb-12">
         {!pgn && (
-          <div className="fade-in">
+          <div>
             <div className="text-center mb-10">
-              <div className="gold-line w-12 mx-auto mb-6" />
-              <h1 className="text-4xl font-bold mb-3 text-[var(--cream)]">Analyze a Game</h1>
-              <p className="text-base text-[var(--cream-dim)]">Upload a PGN or import from Lichess/Chess.com</p>
-              
-              {/* Engine Selector */}
-              <div className="flex items-center justify-center gap-3 mt-4">
-                <span className="text-sm text-[var(--cream-muted)]">Engine:</span>
-                <div className="flex gap-1 p-1 rounded-lg bg-[#111] border border-[#222]">
-                  {(['stockfish', 'goatedchess'] as const).map((e) => (
-                    <button key={e} onClick={() => setEngine(e)}
-                      className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all ${
-                        engine === e 
-                          ? 'bg-[var(--gold)] text-[#0a0a0a] shadow-lg' 
-                          : 'text-[var(--cream-muted)] hover:text-[var(--cream-dim)]'
-                      }`}>
-                      {e === 'stockfish' ? '♟ Stockfish' : '♚ GoatedChess'}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              {engine === 'goatedchess' && (
-                <div className="mt-3 inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-orange-900/20 border border-orange-700/30">
-                  <span className="text-[10px] text-orange-400">⚠ Under development — GoatedChess analysis coming soon. Currently using Stockfish.</span>
-                </div>
-              )}
+              <span className="tag tag-gold mb-4 inline-block">Analyzer</span>
+              <h1 className="text-4xl md:text-5xl mb-3" style={{ fontFamily: 'Instrument Serif' }}>Analyze a Game</h1>
+              <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>Upload a PGN or import from Lichess / Chess.com</p>
             </div>
             <PgnUpload onPgnSubmit={handlePgnSubmit} />
-            <div className="max-w-2xl mx-auto px-2 md:px-0 mt-4">
+            <div className="max-w-2xl mx-auto px-2 mt-4">
               <div className="flex items-center gap-3">
-                <div className="flex-1 h-px bg-[#222]" />
-                <span className="text-xs text-[var(--cream-muted)]">or</span>
-                <div className="flex-1 h-px bg-[#222]" />
+                <div className="flex-1 h-px" style={{ background: 'var(--border)' }} />
+                <span className="text-xs" style={{ color: 'var(--text-muted)' }}>or</span>
+                <div className="flex-1 h-px" style={{ background: 'var(--border)' }} />
               </div>
-              <button onClick={() => setImportMode(!importMode)} className="btn-outline w-full mt-4">
-                {importMode ? '← Back to Paste' : '📥 Import from Lichess / Chess.com'}
+              <button onClick={() => setImportMode(!importMode)} className="btn-secondary w-full mt-4">
+                {importMode ? '← Back to Paste' : 'Import from Lichess / Chess.com'}
               </button>
             </div>
             {importMode && (
-              <div className="mt-4">
+              <div className="mt-4 max-w-2xl mx-auto">
                 <ImportGame onGameSelect={(pgn) => { setImportMode(false); handlePgnSubmit(pgn); }} />
               </div>
             )}
             {savedGames.length > 0 && (
               <div className="mt-12 max-w-2xl mx-auto">
-                <div className="gold-line w-8 mb-6" />
-                <h2 className="text-xl font-bold mb-4 text-[var(--cream)]">Recent Games</h2>
+                <div className="section-divider mb-6" />
+                <h2 className="text-lg font-semibold mb-4" style={{ fontFamily: 'Inter' }}>Recent Games</h2>
                 <div className="space-y-2">
                   {savedGames.slice(0, 5).map((g) => (
-                    <div key={g.id} className="card p-3 flex justify-between items-center cursor-pointer" onClick={() => {
+                    <div key={g.id} className="surface surface-hover p-3 flex justify-between items-center cursor-pointer" onClick={() => {
                       setPgn(''); setGameInfo({ white: g.whiteName, black: g.blackName, result: g.result });
                       setMoves(g.moves); setWhiteACPL(g.whiteACPL); setBlackACPL(g.blackACPL);
                       setProgress({ current: g.totalMoves, total: g.totalMoves, status: 'done', currentMove: '' });
                     }}>
-                      <div>
-                        <span className="font-medium text-sm text-[var(--cream)]">{g.whiteName}</span>
-                        <span className="text-sm text-[var(--cream-muted)]"> vs </span>
-                        <span className="font-medium text-sm text-[var(--cream)]">{g.blackName}</span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium" style={{ color: 'var(--text)' }}>{g.whiteName}</span>
+                        <span className="text-xs" style={{ color: 'var(--text-muted)' }}>vs</span>
+                        <span className="text-sm font-medium" style={{ color: 'var(--text)' }}>{g.blackName}</span>
                       </div>
                       <div className="flex items-center gap-3">
-                        <span className="mono text-xs text-[var(--cream-muted)]">ACPL {g.whiteACPL}/{g.blackACPL}</span>
-                        <button onClick={(e) => { e.stopPropagation(); deleteGame(g.id).then(() => getAllGames().then(setSavedGames).catch(() => {})); }} className="text-xs hover:opacity-60 text-[var(--cream-muted)]">×</button>
+                        <span className="mono text-xs" style={{ color: 'var(--text-muted)' }}>{g.whiteACPL}/{g.blackACPL}</span>
+                        <button onClick={(e) => { e.stopPropagation(); deleteGame(g.id).then(() => getAllGames().then(setSavedGames).catch(() => {})); }} className="text-xs opacity-40 hover:opacity-100 transition-opacity" style={{ color: 'var(--text-muted)' }}>×</button>
                       </div>
                     </div>
                   ))}
@@ -217,35 +161,40 @@ export default function AnalysePage() {
           </div>
         )}
 
-        {progress.status !== 'idle' && <div className="mb-4 fade-in"><AnalysisProgress {...progress} /></div>}
+        {progress.status !== 'idle' && <div className="mb-4"><AnalysisProgress {...progress} /></div>}
 
         {moves.length > 0 && (
-          <div className="fade-in">
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-2 mb-4 stagger">
+          <div>
+            {/* Stats bar */}
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
               {[
-                { v: `${Math.round(whiteAccuracy * 100)}%`, l: `${gameInfo?.white || 'W'} Accuracy`, c: '' },
-                { v: `${Math.round(blackAccuracy * 100)}%`, l: `${gameInfo?.black || 'B'} Accuracy`, c: '' },
-                { v: `${wb}/${bb}`, l: 'Blunders W/B', c: 'text-[var(--red)]' },
-                { v: `${wm}/${bm}`, l: 'Mistakes W/B', c: 'text-[var(--amber)]' },
-                { v: `${whiteRating}/${blackRating}`, l: 'Est. Rating', c: 'text-[var(--gold)]' },
+                { v: `${Math.round(whiteAccuracy * 100)}%`, l: `${gameInfo?.white || 'W'} Accuracy` },
+                { v: `${Math.round(blackAccuracy * 100)}%`, l: `${gameInfo?.black || 'B'} Accuracy` },
+                { v: `${wb}/${bb}`, l: 'Blunders', c: 'var(--accent-red)' },
+                { v: `${wm}/${bm}`, l: 'Mistakes', c: 'var(--accent-amber)' },
+                { v: `${whiteRating}/${blackRating}`, l: 'Est. Rating', c: 'var(--gold)' },
               ].map((s) => (
-                <div key={s.l} className="stat py-2 md:py-3">
-                  <div className={`text-lg md:text-xl font-[Playfair_Display] font-bold text-[var(--cream)] ${s.c}`}>{s.v}</div>
-                  <div className="text-[9px] md:text-[10px] text-[var(--cream-muted)] mt-1 uppercase tracking-wider">{s.l}</div>
+                <div key={s.l} className="surface p-3 text-center">
+                  <div className="text-lg font-bold" style={{ fontFamily: 'Inter', color: s.c || 'var(--text)' }}>{s.v}</div>
+                  <div className="text-[10px] uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>{s.l}</div>
                 </div>
               ))}
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
-              <div className="col-span-1 lg:col-span-5 space-y-3">
-                <div className="card p-2 md:p-3">
-                  <div className="flex gap-2 md:gap-3">
+              {/* Left: Board + Eval */}
+              <div className="lg:col-span-5 space-y-3">
+                <div className="surface p-3">
+                  <div className="flex gap-3">
                     <div className="flex flex-col items-center gap-1">
-                      <span className="mono text-[9px] md:text-[10px] text-[var(--cream-muted)]">{evalSide}</span>
-                      <div className="eval-bar-container h-64 md:h-80">
-                        <div className="eval-bar-fill" style={{ height: isMate ? (evalCp > 0 ? '100%' : '5%') : `${Math.min(100, Math.max(5, 50 + (evalCp / 100) * 2))}%`, background: evalCp >= 0 ? 'var(--cream)' : '#333' }} />
+                      <span className="mono text-[10px]" style={{ color: 'var(--text-muted)' }}>{evalSide}</span>
+                      <div className="w-5 h-64 md:h-80 rounded overflow-hidden relative" style={{ background: 'var(--bg-subtle)' }}>
+                        <div className="absolute bottom-0 left-0 right-0 rounded transition-all duration-300" style={{
+                          height: isMate ? (evalCp > 0 ? '100%' : '5%') : `${Math.min(95, Math.max(5, 50 + (evalCp / 100) * 2))}%`,
+                          background: evalCp >= 0 ? 'var(--text)' : '#27272a',
+                        }} />
                       </div>
-                      <span className="mono text-[10px] md:text-xs font-semibold" style={{ color: evalCp > 0 ? 'var(--cream)' : 'var(--cream-muted)' }}>
+                      <span className="mono text-[11px] font-semibold" style={{ color: evalCp >= 0 ? 'var(--text)' : 'var(--text-muted)' }}>
                         {evalDisplay}
                       </span>
                     </div>
@@ -253,63 +202,62 @@ export default function AnalysePage() {
                       <ChessBoard pgn={pgn} currentMoveIndex={currentMoveIndex} orientation={flipped ? 'black' : 'white'} whiteName={gameInfo?.white} blackName={gameInfo?.black} />
                     </div>
                   </div>
-                  <div className="flex justify-between items-center mt-2">
+                  <div className="flex justify-between items-center mt-3">
                     <button onClick={() => setCurrentMoveIndex(prev => Math.max(0, prev - 1))} disabled={currentMoveIndex === 0}
-                      className="text-xs px-3 py-1.5 rounded-md transition-colors hover:bg-[#111] text-[var(--cream-muted)] hover:text-[var(--cream-dim)] disabled:opacity-30">←</button>
+                      className="btn-ghost btn-sm disabled:opacity-30">← Prev</button>
                     <div className="flex items-center gap-2">
-                      <button onClick={() => setFlipped(!flipped)} className="text-[10px] px-2 py-1 rounded transition-colors hover:bg-[#111] text-[var(--cream-muted)]">↻</button>
-                      <span className="mono text-[10px] text-[var(--cream-muted)]">{currentMoveIndex + 1}/{total}</span>
+                      <button onClick={() => setFlipped(!flipped)} className="btn-ghost btn-sm">↻</button>
+                      <span className="mono text-xs" style={{ color: 'var(--text-muted)' }}>{currentMoveIndex + 1}/{total}</span>
                     </div>
                     <button onClick={() => setCurrentMoveIndex(prev => Math.min(total - 1, prev + 1))} disabled={currentMoveIndex >= total - 1}
-                      className="text-xs px-3 py-1.5 rounded-md transition-colors hover:bg-[#111] text-[var(--cream-muted)] hover:text-[var(--cream-dim)] disabled:opacity-30">→</button>
+                      className="btn-ghost btn-sm disabled:opacity-30">Next →</button>
                   </div>
                 </div>
-                <div className="card p-2 md:p-3">
+                <div className="surface p-3">
                   <EvalGraph evals={evals} currentMoveIndex={currentMoveIndex} onMoveClick={setCurrentMoveIndex} flipped={flipped} />
                 </div>
               </div>
 
-              <div className="col-span-1 lg:col-span-7 space-y-3">
+              {/* Right: Move info + list */}
+              <div className="lg:col-span-7 space-y-3">
                 {curMove && (
-                  <div className="card p-3 md:p-4 fade-in" key={currentMoveIndex}>
+                  <div className="surface p-4" key={currentMoveIndex} style={{ animation: 'fadeIn 0.2s ease' }}>
                     <div className="flex items-center justify-between mb-2">
                       <div className="flex items-center gap-2">
-                        <span className="mono text-xs md:text-sm font-semibold text-[var(--cream)]">
+                        <span className="mono text-sm font-semibold" style={{ color: 'var(--text)' }}>
                           {Math.floor(currentMoveIndex / 2) + 1}.{currentMoveIndex % 2 === 0 ? '' : '...'}{curMove.san}
                         </span>
-                        <span className={`badge badge-${curMove.classification}`}>{curMove.classification}</span>
+                        <span className={`badge-${curMove.classification}`}>{curMove.classification}</span>
                       </div>
-                      <span className="mono text-[10px] md:text-xs text-[var(--cream-muted)]">
+                      <span className="mono text-xs" style={{ color: 'var(--text-muted)' }}>
                         {curMove.evalBefore > 0 ? '+' : ''}{(curMove.evalBefore / 100).toFixed(2)} → {curMove.evalAfter > 0 ? '+' : ''}{(curMove.evalAfter / 100).toFixed(2)}
                       </span>
                     </div>
                     {curMove.bestMove && (
-                      <p className="text-xs text-[var(--cream-muted)]">
-                        Best: <span className="mono text-[var(--gold)]">{curMove.bestMove}</span>
+                      <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                        Best: <span className="mono" style={{ color: 'var(--gold)' }}>{curMove.bestMove}</span>
                         {curMove.evalLoss > 0 && <> · Lost {curMove.evalLoss}cp</>}
                       </p>
                     )}
                     {curMove.classification !== 'excellent' && curMove.classification !== 'best' && (
-                      <p className="text-xs text-[var(--cream-dim)] mt-1">
-                        {curMove.classification === 'blunder' && `This move loses significant advantage. The engine prefers ${curMove.bestMove || 'a different move'} which maintains a stronger position.`}
-                        {curMove.classification === 'mistake' && `This move weakens the position. Better alternatives exist that keep more control.`}
+                      <p className="text-xs mt-1" style={{ color: 'var(--text-secondary)' }}>
+                        {curMove.classification === 'blunder' && `This move loses significant advantage. The engine prefers ${curMove.bestMove || 'a different move'}.`}
+                        {curMove.classification === 'mistake' && `This move weakens the position. Better alternatives exist.`}
                         {curMove.classification === 'inaccuracy' && `Slightly inaccurate — a more precise move was available.`}
                         {curMove.classification === 'good' && `Decent move, but not the engine's top choice.`}
                       </p>
                     )}
                     {curMove.pv.length > 2 && (
-                      <div className="mt-2 pv-line">
-                        <span className="text-[10px] uppercase tracking-wider text-[var(--cream-muted)]">Engine line: </span>
-                        {curMove.pv.slice(0, 6).map((m, i) => <span key={i} className="pv-move">{m} </span>)}
-                        <span className="text-[var(--cream-muted)]">...</span>
+                      <div className="mt-2 mono text-xs" style={{ color: 'var(--text-muted)' }}>
+                        Engine: {curMove.pv.slice(0, 6).map((m, i) => <span key={i} className="hover:text-[var(--gold)] cursor-pointer">{m} </span>)}...
                       </div>
                     )}
                   </div>
                 )}
-                <div className="card">
-                  <div className="flex border-b border-[#222]">
+                <div className="surface overflow-hidden">
+                  <div className="flex" style={{ borderBottom: '1px solid var(--border)' }}>
                     {(['moves', 'details'] as const).map((tab) => (
-                      <button key={tab} onClick={() => setActiveTab(tab)} className="flex-1 py-2.5 text-sm font-medium transition-colors" style={{ color: activeTab === tab ? 'var(--gold)' : 'var(--cream-muted)', borderBottom: activeTab === tab ? '2px solid var(--gold)' : '2px solid transparent' }}>
+                      <button key={tab} onClick={() => setActiveTab(tab)} className="flex-1 py-2.5 text-sm font-medium transition-colors" style={{ color: activeTab === tab ? 'var(--gold)' : 'var(--text-muted)', borderBottom: activeTab === tab ? '2px solid var(--gold)' : '2px solid transparent' }}>
                         {tab === 'moves' ? 'Moves' : 'Details'}
                       </button>
                     ))}
@@ -320,34 +268,34 @@ export default function AnalysePage() {
                     ) : (
                       <div className="space-y-4">
                         <div>
-                          <h4 className="text-xs font-semibold mb-2 uppercase tracking-wider text-[var(--cream-muted)]">{gameInfo?.white || 'White'} Accuracy</h4>
-                          <div className="w-full rounded-full h-2 bg-[#111]"><div className="h-2 rounded-full bg-[var(--green)]" style={{ width: `${Math.round(whiteAccuracy * 100)}%` }} /></div>
-                          <p className="mono text-xs mt-1 text-[var(--cream-muted)]">{Math.round(whiteAccuracy * 100)}% ({wbe}/{total / 2} best/excellent)</p>
+                          <h4 className="text-xs font-semibold mb-2 uppercase tracking-wider" style={{ color: 'var(--text-muted)', fontFamily: 'Inter' }}>{gameInfo?.white || 'White'}</h4>
+                          <div className="w-full rounded-full h-2" style={{ background: 'var(--bg-subtle)' }}><div className="h-2 rounded-full" style={{ width: `${Math.round(whiteAccuracy * 100)}%`, background: 'var(--accent-green)' }} /></div>
+                          <p className="mono text-xs mt-1" style={{ color: 'var(--text-muted)' }}>{Math.round(whiteAccuracy * 100)}% ({wbe}/{total / 2} best/excellent)</p>
                         </div>
                         <div>
-                          <h4 className="text-xs font-semibold mb-2 uppercase tracking-wider text-[var(--cream-muted)]">{gameInfo?.black || 'Black'} Accuracy</h4>
-                          <div className="w-full rounded-full h-2 bg-[#111]"><div className="h-2 rounded-full bg-[var(--green)]" style={{ width: `${Math.round(blackAccuracy * 100)}%` }} /></div>
-                          <p className="mono text-xs mt-1 text-[var(--cream-muted)]">{Math.round(blackAccuracy * 100)}% ({bbe}/{total / 2} best/excellent)</p>
+                          <h4 className="text-xs font-semibold mb-2 uppercase tracking-wider" style={{ color: 'var(--text-muted)', fontFamily: 'Inter' }}>{gameInfo?.black || 'Black'}</h4>
+                          <div className="w-full rounded-full h-2" style={{ background: 'var(--bg-subtle)' }}><div className="h-2 rounded-full" style={{ width: `${Math.round(blackAccuracy * 100)}%`, background: 'var(--accent-green)' }} /></div>
+                          <p className="mono text-xs mt-1" style={{ color: 'var(--text-muted)' }}>{Math.round(blackAccuracy * 100)}% ({bbe}/{total / 2} best/excellent)</p>
                         </div>
-                        <div className="h-px bg-[#222]" />
+                        <div className="section-divider" />
                         <div>
-                          <h4 className="text-xs font-semibold mb-2 uppercase tracking-wider text-[var(--cream-muted)]">Move Breakdown</h4>
-                          <div className="space-y-1 text-xs">
+                          <h4 className="text-xs font-semibold mb-2 uppercase tracking-wider" style={{ color: 'var(--text-muted)', fontFamily: 'Inter' }}>Move Breakdown</h4>
+                          <div className="space-y-1.5 text-xs">
                             {[
-                              ['Best', moves.filter(m => m.white?.classification === 'best').length, moves.filter(m => m.black?.classification === 'best').length, 'text-[var(--green)]'],
-                              ['Excellent', moves.filter(m => m.white?.classification === 'excellent').length, moves.filter(m => m.black?.classification === 'excellent').length, 'text-[var(--green)]'],
-                              ['Good', moves.filter(m => m.white?.classification === 'good').length, moves.filter(m => m.black?.classification === 'good').length, 'text-[var(--cream-dim)]'],
-                              ['Inaccuracy', wi, bi, 'text-[var(--amber)]'],
-                              ['Mistake', wm, bm, 'text-[#e05545]'],
-                              ['Blunder', wb, bb, 'text-[var(--red)]'],
+                              ['Best', moves.filter(m => m.white?.classification === 'best').length, moves.filter(m => m.black?.classification === 'best').length, 'var(--accent-green)'],
+                              ['Excellent', moves.filter(m => m.white?.classification === 'excellent').length, moves.filter(m => m.black?.classification === 'excellent').length, 'var(--accent-green)'],
+                              ['Good', moves.filter(m => m.white?.classification === 'good').length, moves.filter(m => m.black?.classification === 'good').length, 'var(--text-secondary)'],
+                              ['Inaccuracy', wi, bi, 'var(--accent-amber)'],
+                              ['Mistake', wm, bm, '#f87171'],
+                              ['Blunder', wb, bb, 'var(--accent-red)'],
                             ].map(([label, wCount, bCount, c]) => (
-                              <div key={label} className="flex justify-between items-center">
-                                <span className="text-[var(--cream-dim)]">{label}</span>
-                                <span className={`mono ${c}`}>{wCount} / {bCount}</span>
+                              <div key={label as string} className="flex justify-between items-center">
+                                <span style={{ color: 'var(--text-secondary)' }}>{label}</span>
+                                <span className="mono" style={{ color: c as string }}>{wCount} / {bCount}</span>
                               </div>
                             ))}
                           </div>
-                          <p className="text-[10px] text-[var(--cream-muted)] mt-2">White / Black</p>
+                          <p className="text-[10px] mt-2" style={{ color: 'var(--text-muted)' }}>White / Black</p>
                         </div>
                       </div>
                     )}
@@ -357,7 +305,7 @@ export default function AnalysePage() {
             </div>
 
             <div className="mt-6 text-center">
-              <button onClick={reset} className="btn-outline">Analyze Another Game</button>
+              <button onClick={reset} className="btn-secondary">Analyze Another Game</button>
             </div>
           </div>
         )}

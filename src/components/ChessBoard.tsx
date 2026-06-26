@@ -38,17 +38,19 @@ export default function ChessBoard({ pgn, currentMoveIndex, orientation = 'white
     setFen(replay.fen());
   }, [pgn, currentMoveIndex]);
 
+  const labelStyle = { color: 'var(--text-secondary)' } as const;
+
   return (
     <div className="flex flex-col">
       {orientation === 'white' ? (
         <div className="flex items-center justify-between mb-1 px-1">
-          <span className="text-[10px] md:text-xs font-medium text-[var(--cream-dim)]">{blackName || 'Black'}</span>
-          {whiteName && <span className="text-[8px] md:text-[10px] text-[var(--cream-muted)]">♔</span>}
+          <span className="text-xs font-medium" style={labelStyle}>{blackName || 'Black'}</span>
+          <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>♚</span>
         </div>
       ) : (
         <div className="flex items-center justify-between mb-1 px-1">
-          <span className="text-[10px] md:text-xs font-medium text-[var(--cream-dim)]">{whiteName || 'White'}</span>
-          <span className="text-[8px] md:text-[10px] text-[var(--cream-muted)]">♚</span>
+          <span className="text-xs font-medium" style={labelStyle}>{whiteName || 'White'}</span>
+          <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>♔</span>
         </div>
       )}
 
@@ -58,21 +60,23 @@ export default function ChessBoard({ pgn, currentMoveIndex, orientation = 'white
         animationDuration={200}
         arePiecesDraggable={false}
         boardOrientation={orientation}
+        customDarkSquareStyle={{ backgroundColor: '#3b3b3b' }}
+        customLightSquareStyle={{ backgroundColor: '#6b6b6b' }}
         customBoardStyle={{
-          borderRadius: '4px',
-          boxShadow: '0 5px 15px rgba(0,0,0,0.5)',
+          borderRadius: '8px',
+          boxShadow: '0 4px 20px rgba(0,0,0,0.4)',
         }}
       />
 
       {orientation === 'white' ? (
         <div className="flex items-center justify-between mt-1 px-1">
-          <span className="text-[10px] md:text-xs font-medium text-[var(--cream-dim)]">{whiteName || 'White'}</span>
-          <span className="text-[8px] md:text-[10px] text-[var(--cream-muted)]">♚</span>
+          <span className="text-xs font-medium" style={labelStyle}>{whiteName || 'White'}</span>
+          <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>♚</span>
         </div>
       ) : (
         <div className="flex items-center justify-between mt-1 px-1">
-          <span className="text-[10px] md:text-xs font-medium text-[var(--cream-dim)]">{blackName || 'Black'}</span>
-          {whiteName && <span className="text-[8px] md:text-[10px] text-[var(--cream-muted)]">♔</span>}
+          <span className="text-xs font-medium" style={labelStyle}>{blackName || 'Black'}</span>
+          <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>♔</span>
         </div>
       )}
     </div>
