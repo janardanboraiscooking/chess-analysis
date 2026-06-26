@@ -157,12 +157,12 @@ function analyzeWithWorker(worker: Worker, fen: string, depth: number): Promise<
   });
 }
 
-// Stockfish.online API — free, depth up to 15
-// Eval is from side-to-move perspective, needs conversion to white's perspective
+// Eval conversion: engines return from side-to-move perspective
 function negateIfNeeded(fen: string, evalCp: number): number {
   return fen.includes(' b ') ? -evalCp : evalCp;
 }
 
+// Cloud API queue — serializes requests to avoid rate limits
 let cloudQueue: (() => Promise<void>)[] = [];
 let processingCloud = false;
 
@@ -172,12 +172,44 @@ async function processCloudQueue() {
   while (cloudQueue.length > 0) {
     const task = cloudQueue.shift()!;
     await task();
-    // Small gap between requests to avoid rate limiting
-    await new Promise(r => setTimeout(r, 150));
+    await new Promise(r => setTimeout(r, 100));
   }
   processingCloud = false;
 }
 
+// Chessdb.cn — free, depth 29-31, no rate limit, returns scores for ALL moves
+function analyzeWithChessdb(fen: string): Promise<PositionEval | null> {
+  return new Promise((resolve) => {
+    const task = async () => {
+      try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 10000);
+        const board = fen.replace(/ /g, '%20');
+        const res = await fetch(`http://www.chessdb.cn/cdb.php?action=querypv&board=${board}`, { signal: controller.signal });
+        clearTimeout(timeout);
+        if (!res.ok) { resolve(null); return; }
+        const text = await res.text();
+        // Format: "score:-1,depth:29,pv:b8c6|d2d4|..."
+        const scoreMatch = text.match(/score:(-?\d+)/);
+        const depthMatch = text.match(/depth:(\d+)/);
+        const pvMatch = text.match(/pv:(.+)/);
+        if (!scoreMatch) { resolve(null); return; }
+        const rawEval = parseInt(scoreMatch[1]);
+        const evalCp = negateIfNeeded(fen, rawEval);
+        const depth = depthMatch ? parseInt(depthMatch[1]) : 29;
+        const pvMoves = pvMatch ? pvMatch[1].split('|') : [];
+        const bestMove = pvMoves[0] || '';
+        resolve({ fen, eval: evalCp, bestMove, pv: pvMoves, depth });
+      } catch {
+        resolve(null);
+      }
+    };
+    cloudQueue.push(task);
+    processCloudQueue();
+  });
+}
+
+// Stockfish.online — free, depth 15, fallback
 function analyzeWithStockfishOnline(fen: string): Promise<PositionEval | null> {
   return new Promise((resolve) => {
     const task = async () => {
@@ -244,13 +276,19 @@ export async function analyzeGame(
       }
 
       try {
-        // Try cloud API first (queued, handles rate limiting)
-        const online = await analyzeWithStockfishOnline(positions[i]);
-        if (online) {
-          evals[i] = online;
+        // Tier 1: Chessdb.cn (depth 29-31, no rate limit)
+        const chessdb = await analyzeWithChessdb(positions[i]);
+        if (chessdb) {
+          evals[i] = chessdb;
         } else {
-          // Fallback to local Stockfish
-          evals[i] = await analyzeWithWorker(workers[workerIdx], positions[i], depth);
+          // Tier 2: Stockfish.online (depth 15)
+          const online = await analyzeWithStockfishOnline(positions[i]);
+          if (online) {
+            evals[i] = online;
+          } else {
+            // Tier 3: Local Stockfish (depth 16)
+            evals[i] = await analyzeWithWorker(workers[workerIdx], positions[i], depth);
+          }
         }
       } catch {
         const fallback = evals[Math.max(0, i - 1)] ?? { fen: positions[i], eval: 0, bestMove: '', pv: [], depth };
