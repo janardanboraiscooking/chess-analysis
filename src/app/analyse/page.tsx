@@ -86,7 +86,7 @@ export default function AnalysePage() {
   }, [total]);
 
   const calcRating = (accuracy: number, blunders: number, mistakes: number) => {
-    const baseRating = 400 + accuracy * 2100;
+    const baseRating = 400 + accuracy * 1700;
     const blunderPenalty = blunders * 30;
     const mistakePenalty = mistakes * 8;
     return Math.max(800, Math.min(3000, Math.round(baseRating - blunderPenalty - mistakePenalty)));
