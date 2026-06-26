@@ -162,85 +162,80 @@ function negateIfNeeded(fen: string, evalCp: number): number {
   return fen.includes(' b ') ? -evalCp : evalCp;
 }
 
-// Cloud API queue — serializes requests to avoid rate limits
-let cloudQueue: (() => Promise<void>)[] = [];
-let processingCloud = false;
+// Cloud API — concurrent pool (3 parallel requests, no rate limit on chess-api.com)
+const CLOUD_CONCURRENCY = 3;
+let cloudActive = 0;
+let cloudWaiting: (() => void)[] = [];
 
-async function processCloudQueue() {
-  if (processingCloud) return;
-  processingCloud = true;
-  while (cloudQueue.length > 0) {
-    const task = cloudQueue.shift()!;
-    await task();
-    await new Promise(r => setTimeout(r, 100));
-  }
-  processingCloud = false;
+function acquireCloudSlot(): Promise<void> {
+  if (cloudActive < CLOUD_CONCURRENCY) { cloudActive++; return Promise.resolve(); }
+  return new Promise(resolve => cloudWaiting.push(resolve));
+}
+
+function releaseCloudSlot() {
+  cloudActive--;
+  if (cloudWaiting.length > 0) { cloudActive++; cloudWaiting.shift()!(); }
 }
 
 // chess-api.com — free, depth 18, no rate limit, returns eval + PV + win chance
 function analyzeWithChessApi(fen: string): Promise<PositionEval | null> {
-  return new Promise((resolve) => {
-    const task = async () => {
-      try {
-        const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 15000);
-        const res = await fetch('https://chess-api.com/v1', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ fen, depth: 18 }),
-          signal: controller.signal,
-        });
-        clearTimeout(timeout);
-        if (!res.ok) { resolve(null); return; }
-        const data = await res.json();
-        if (data.type === 'error') { resolve(null); return; }
-        // Parse actual signed score from debug line (centipawns field is absolute value)
-        let evalCp = 0;
-        const debugMatch = data.debug?.match(/score (?:cp|mate) (-?\d+)/);
-        if (debugMatch) {
-          const rawScore = parseInt(debugMatch[1]);
-          // Convert from side-to-move perspective to white's perspective
-          evalCp = data.turn === 'b' ? -rawScore : rawScore;
-        }
-        const pvMoves = data.continuationArr || [];
-        const bestMove = data.move || pvMoves[0] || '';
-        resolve({ fen, eval: evalCp, bestMove, pv: pvMoves, depth: data.depth || 18 });
-      } catch {
-        resolve(null);
+  return new Promise(async (resolve) => {
+    await acquireCloudSlot();
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 15000);
+      const res = await fetch('https://chess-api.com/v1', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fen, depth: 18 }),
+        signal: controller.signal,
+      });
+      clearTimeout(timeout);
+      if (!res.ok) { resolve(null); return; }
+      const data = await res.json();
+      if (data.type === 'error') { resolve(null); return; }
+      let evalCp = 0;
+      const debugMatch = data.debug?.match(/score (?:cp|mate) (-?\d+)/);
+      if (debugMatch) {
+        const rawScore = parseInt(debugMatch[1]);
+        evalCp = data.turn === 'b' ? -rawScore : rawScore;
       }
-    };
-    cloudQueue.push(task);
-    processCloudQueue();
+      const pvMoves = data.continuationArr || [];
+      const bestMove = data.move || pvMoves[0] || '';
+      resolve({ fen, eval: evalCp, bestMove, pv: pvMoves, depth: data.depth || 18 });
+    } catch {
+      resolve(null);
+    } finally {
+      releaseCloudSlot();
+    }
   });
 }
 
 // Stockfish.online — free, depth 15, fallback
 // Returns eval in pawns from White's perspective (positive = White better)
 function analyzeWithStockfishOnline(fen: string): Promise<PositionEval | null> {
-  return new Promise((resolve) => {
-    const task = async () => {
-      try {
-        const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 8000);
-        const encoded = encodeURIComponent(fen);
-        const res = await fetch(`https://stockfish.online/api/s/v2.php?fen=${encoded}&depth=15`, { signal: controller.signal });
-        clearTimeout(timeout);
-        if (!res.ok) { resolve(null); return; }
-        const data = await res.json();
-        if (!data.success) { resolve(null); return; }
-        // eval is already from White's perspective — no negation needed
-        const evalCp = data.mate
-          ? (data.mate > 0 ? 30000 - data.mate * 2 : -30000 - Math.abs(data.mate) * 2)
-          : Math.round(data.evaluation * 100);
-        const pvMoves = data.continuation?.split(' ') || [];
-        const bestMove = pvMoves[0] || data.bestmove?.split(' ')[1] || '';
-        resolve({ fen, eval: evalCp, bestMove, pv: pvMoves, depth: 15 });
-      } catch {
-        resolve(null);
-      }
-    };
-    cloudQueue.push(task);
-    processCloudQueue();
+  return new Promise(async (resolve) => {
+    await acquireCloudSlot();
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 8000);
+      const encoded = encodeURIComponent(fen);
+      const res = await fetch(`https://stockfish.online/api/s/v2.php?fen=${encoded}&depth=15`, { signal: controller.signal });
+      clearTimeout(timeout);
+      if (!res.ok) { resolve(null); return; }
+      const data = await res.json();
+      if (!data.success) { resolve(null); return; }
+      const evalCp = data.mate
+        ? (data.mate > 0 ? 30000 - data.mate * 2 : -30000 - Math.abs(data.mate) * 2)
+        : Math.round(data.evaluation * 100);
+      const pvMoves = data.continuation?.split(' ') || [];
+      const bestMove = pvMoves[0] || data.bestmove?.split(' ')[1] || '';
+      resolve({ fen, eval: evalCp, bestMove, pv: pvMoves, depth: 15 });
+    } catch {
+      resolve(null);
+    } finally {
+      releaseCloudSlot();
+    }
   });
 }
 
