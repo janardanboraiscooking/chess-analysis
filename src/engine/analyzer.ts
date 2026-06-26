@@ -177,29 +177,29 @@ async function processCloudQueue() {
   processingCloud = false;
 }
 
-// Chessdb.cn — free, depth 29-31, no rate limit, returns scores for ALL moves
-function analyzeWithChessdb(fen: string): Promise<PositionEval | null> {
+// chess-api.com — free, depth 18, no rate limit, returns eval + PV + win chance
+function analyzeWithChessApi(fen: string): Promise<PositionEval | null> {
   return new Promise((resolve) => {
     const task = async () => {
       try {
         const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 10000);
-        const board = fen.replace(/ /g, '%20');
-        const res = await fetch(`http://www.chessdb.cn/cdb.php?action=querypv&board=${board}`, { signal: controller.signal });
+        const timeout = setTimeout(() => controller.abort(), 15000);
+        const res = await fetch('https://chess-api.com/v1', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ fen, depth: 18 }),
+          signal: controller.signal,
+        });
         clearTimeout(timeout);
         if (!res.ok) { resolve(null); return; }
-        const text = await res.text();
-        // Format: "score:-1,depth:29,pv:b8c6|d2d4|..."
-        const scoreMatch = text.match(/score:(-?\d+)/);
-        const depthMatch = text.match(/depth:(\d+)/);
-        const pvMatch = text.match(/pv:(.+)/);
-        if (!scoreMatch) { resolve(null); return; }
-        const rawEval = parseInt(scoreMatch[1]);
+        const data = await res.json();
+        if (data.type === 'error') { resolve(null); return; }
+        // centipawns is from side-to-move perspective
+        const rawEval = data.centipawns ?? 0;
         const evalCp = negateIfNeeded(fen, rawEval);
-        const depth = depthMatch ? parseInt(depthMatch[1]) : 29;
-        const pvMoves = pvMatch ? pvMatch[1].split('|') : [];
-        const bestMove = pvMoves[0] || '';
-        resolve({ fen, eval: evalCp, bestMove, pv: pvMoves, depth });
+        const pvMoves = data.continuationArr || [];
+        const bestMove = data.move || pvMoves[0] || '';
+        resolve({ fen, eval: evalCp, bestMove, pv: pvMoves, depth: data.depth || 18 });
       } catch {
         resolve(null);
       }
@@ -276,10 +276,10 @@ export async function analyzeGame(
       }
 
       try {
-        // Tier 1: Chessdb.cn (depth 29-31, no rate limit)
-        const chessdb = await analyzeWithChessdb(positions[i]);
-        if (chessdb) {
-          evals[i] = chessdb;
+        // Tier 1: chess-api.com (depth 18, no rate limit)
+        const chessApi = await analyzeWithChessApi(positions[i]);
+        if (chessApi) {
+          evals[i] = chessApi;
         } else {
           // Tier 2: Stockfish.online (depth 15)
           const online = await analyzeWithStockfishOnline(positions[i]);
