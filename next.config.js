@@ -1,8 +1,5 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  experimental: {
-    staticPageGenerationTimeout: 300,
-  },
   headers: async () => [],
   webpack: (config, { isServer }) => {
     if (!isServer) {
