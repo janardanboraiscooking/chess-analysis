@@ -145,9 +145,9 @@ function analyzeWithWorker(worker: Worker, fen: string, depth: number): Promise<
         rawLines.push(e.data.payload);
 
         const parsed = parseStockfishOutput(rawLines);
-        // Stockfish asm.js returns eval from white's perspective always
-        // No conversion needed — just use the raw value
-        resolve({ fen, eval: parsed.eval, bestMove: parsed.bestMove, pv: parsed.pv, depth });
+        // Convert from side-to-move perspective to white's perspective
+        const evalCp = fen.includes(' b ') ? -parsed.eval : parsed.eval;
+        resolve({ fen, eval: evalCp, bestMove: parsed.bestMove, pv: parsed.pv, depth });
       }
     };
 
@@ -157,35 +157,53 @@ function analyzeWithWorker(worker: Worker, fen: string, depth: number): Promise<
   });
 }
 
-// Stockfish.online API — free, depth up to 15, needs spacing between requests
-let lastCloudRequest = 0;
-const CLOUD_DELAY_MS = 600;
+// Stockfish.online API — free, depth up to 15
+// Eval is from side-to-move perspective, needs conversion to white's perspective
+function negateIfNeeded(fen: string, evalCp: number): number {
+  return fen.includes(' b ') ? -evalCp : evalCp;
+}
 
-async function analyzeWithStockfishOnline(fen: string): Promise<PositionEval | null> {
-  // Respect rate limit — space requests
-  const now = Date.now();
-  const wait = CLOUD_DELAY_MS - (now - lastCloudRequest);
-  if (wait > 0) await new Promise(r => setTimeout(r, wait));
-  lastCloudRequest = Date.now();
+let cloudQueue: (() => Promise<void>)[] = [];
+let processingCloud = false;
 
-  try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 8000);
-    const encoded = encodeURIComponent(fen);
-    const res = await fetch(`https://stockfish.online/api/s/v2.php?fen=${encoded}&depth=15`, { signal: controller.signal });
-    clearTimeout(timeout);
-    if (!res.ok) return null;
-    const data = await res.json();
-    if (!data.success) return null;
-    const evalCp = data.mate
-      ? (data.mate > 0 ? 30000 - data.mate * 2 : -30000 - Math.abs(data.mate) * 2)
-      : Math.round(data.evaluation * 100);
-    const pvMoves = data.continuation?.split(' ') || [];
-    const bestMove = pvMoves[0] || data.bestmove?.split(' ')[1] || '';
-    return { fen, eval: evalCp, bestMove, pv: pvMoves, depth: 15 };
-  } catch {
-    return null;
+async function processCloudQueue() {
+  if (processingCloud) return;
+  processingCloud = true;
+  while (cloudQueue.length > 0) {
+    const task = cloudQueue.shift()!;
+    await task();
+    // Small gap between requests to avoid rate limiting
+    await new Promise(r => setTimeout(r, 150));
   }
+  processingCloud = false;
+}
+
+function analyzeWithStockfishOnline(fen: string): Promise<PositionEval | null> {
+  return new Promise((resolve) => {
+    const task = async () => {
+      try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 8000);
+        const encoded = encodeURIComponent(fen);
+        const res = await fetch(`https://stockfish.online/api/s/v2.php?fen=${encoded}&depth=15`, { signal: controller.signal });
+        clearTimeout(timeout);
+        if (!res.ok) { resolve(null); return; }
+        const data = await res.json();
+        if (!data.success) { resolve(null); return; }
+        const rawEval = data.mate
+          ? (data.mate > 0 ? 30000 - data.mate * 2 : -30000 - Math.abs(data.mate) * 2)
+          : Math.round(data.evaluation * 100);
+        const evalCp = negateIfNeeded(fen, rawEval);
+        const pvMoves = data.continuation?.split(' ') || [];
+        const bestMove = pvMoves[0] || data.bestmove?.split(' ')[1] || '';
+        resolve({ fen, eval: evalCp, bestMove, pv: pvMoves, depth: 15 });
+      } catch {
+        resolve(null);
+      }
+    };
+    cloudQueue.push(task);
+    processCloudQueue();
+  });
 }
 
 export async function analyzeGame(
@@ -226,16 +244,12 @@ export async function analyzeGame(
       }
 
       try {
-        // Only worker 0 uses cloud API (serialized to avoid rate limits)
-        // Workers 1-4 always use local Stockfish for parallel speed
-        if (workerIdx === 0) {
-          const online = await analyzeWithStockfishOnline(positions[i]);
-          if (online) {
-            evals[i] = online;
-          } else {
-            evals[i] = await analyzeWithWorker(workers[workerIdx], positions[i], depth);
-          }
+        // Try cloud API first (queued, handles rate limiting)
+        const online = await analyzeWithStockfishOnline(positions[i]);
+        if (online) {
+          evals[i] = online;
         } else {
+          // Fallback to local Stockfish
           evals[i] = await analyzeWithWorker(workers[workerIdx], positions[i], depth);
         }
       } catch {
