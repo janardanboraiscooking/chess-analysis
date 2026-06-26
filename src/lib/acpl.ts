@@ -21,11 +21,11 @@ export function calculateAccuracy(
 
   const weights: Record<string, number> = {
     best: 100,
-    excellent: 85,
-    good: 65,
-    inaccuracy: 40,
-    mistake: 15,
-    blunder: 0,
+    excellent: 95,
+    good: 85,
+    inaccuracy: 70,
+    mistake: 50,
+    blunder: 20,
   };
 
   const total = sideMoves.reduce((sum, m) => sum + (weights[m.classification || ''] ?? 50), 0);
