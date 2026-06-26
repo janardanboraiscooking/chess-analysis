@@ -1,8 +1,8 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  output: 'standalone',
   headers: async () => [],
   webpack: (config, { isServer }) => {
-    // Ignore importScripts paths in workers
     if (!isServer) {
       config.resolve.fallback = {
         ...config.resolve.fallback,
