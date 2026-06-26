@@ -152,7 +152,7 @@ export default function PuzzlesPage() {
                   boardWidth={360}
                   isDraggablePiece={({ piece }) => {
                     if (status !== 'waiting') return false;
-                    return piece.pieceAt(1) === chess.turn();
+                    return piece[0] === chess.turn();
                   }}
                   boardOrientation={boardFlipped ? 'black' : 'white'}
                   customBoardStyle={{
