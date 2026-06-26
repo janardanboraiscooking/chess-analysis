@@ -21,10 +21,10 @@ export function calculateAccuracy(
 
   const weights: Record<string, number> = {
     best: 100,
-    excellent: 95,
-    good: 80,
-    inaccuracy: 60,
-    mistake: 30,
+    excellent: 85,
+    good: 65,
+    inaccuracy: 40,
+    mistake: 15,
     blunder: 0,
   };
 

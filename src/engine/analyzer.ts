@@ -194,9 +194,14 @@ function analyzeWithChessApi(fen: string): Promise<PositionEval | null> {
         if (!res.ok) { resolve(null); return; }
         const data = await res.json();
         if (data.type === 'error') { resolve(null); return; }
-        // centipawns is from side-to-move perspective
-        const rawEval = data.centipawns ?? 0;
-        const evalCp = negateIfNeeded(fen, rawEval);
+        // Parse actual signed score from debug line (centipawns field is absolute value)
+        let evalCp = 0;
+        const debugMatch = data.debug?.match(/score (?:cp|mate) (-?\d+)/);
+        if (debugMatch) {
+          const rawScore = parseInt(debugMatch[1]);
+          // Convert from side-to-move perspective to white's perspective
+          evalCp = data.turn === 'b' ? -rawScore : rawScore;
+        }
         const pvMoves = data.continuationArr || [];
         const bestMove = data.move || pvMoves[0] || '';
         resolve({ fen, eval: evalCp, bestMove, pv: pvMoves, depth: data.depth || 18 });
@@ -210,6 +215,7 @@ function analyzeWithChessApi(fen: string): Promise<PositionEval | null> {
 }
 
 // Stockfish.online — free, depth 15, fallback
+// Returns eval in pawns from White's perspective (positive = White better)
 function analyzeWithStockfishOnline(fen: string): Promise<PositionEval | null> {
   return new Promise((resolve) => {
     const task = async () => {
@@ -222,10 +228,10 @@ function analyzeWithStockfishOnline(fen: string): Promise<PositionEval | null> {
         if (!res.ok) { resolve(null); return; }
         const data = await res.json();
         if (!data.success) { resolve(null); return; }
-        const rawEval = data.mate
+        // eval is already from White's perspective — no negation needed
+        const evalCp = data.mate
           ? (data.mate > 0 ? 30000 - data.mate * 2 : -30000 - Math.abs(data.mate) * 2)
           : Math.round(data.evaluation * 100);
-        const evalCp = negateIfNeeded(fen, rawEval);
         const pvMoves = data.continuation?.split(' ') || [];
         const bestMove = pvMoves[0] || data.bestmove?.split(' ')[1] || '';
         resolve({ fen, eval: evalCp, bestMove, pv: pvMoves, depth: 15 });
