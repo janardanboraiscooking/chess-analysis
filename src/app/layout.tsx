@@ -3,8 +3,6 @@ import './globals.css';
 import Navbar from '@/components/ui/Navbar';
 import Footer from '@/components/ui/Footer';
 
-export const dynamic = 'force-dynamic';
-
 export const metadata: Metadata = {
   title: 'GoatedChess — Chess Engine & Analysis Platform',
   description: 'A professional chess engine built from scratch in C++. Game analysis, opening explorer, and tactical puzzles.',

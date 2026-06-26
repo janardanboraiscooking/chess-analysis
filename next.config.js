@@ -1,6 +1,5 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  output: 'standalone',
   headers: async () => [],
   webpack: (config, { isServer }) => {
     if (!isServer) {
