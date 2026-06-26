@@ -163,7 +163,7 @@ function negateIfNeeded(fen: string, evalCp: number): number {
 }
 
 // Cloud API — concurrent pool (3 parallel requests, no rate limit on chess-api.com)
-const CLOUD_CONCURRENCY = 3;
+const CLOUD_CONCURRENCY = 5;
 let cloudActive = 0;
 let cloudWaiting: (() => void)[] = [];
 
@@ -187,7 +187,7 @@ function analyzeWithChessApi(fen: string): Promise<PositionEval | null> {
       const res = await fetch('https://chess-api.com/v1', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fen, depth: 18 }),
+          body: JSON.stringify({ fen, depth: 24 }),
         signal: controller.signal,
       });
       clearTimeout(timeout);
