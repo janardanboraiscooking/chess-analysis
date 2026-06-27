@@ -177,12 +177,12 @@ export default function AnalysePage() {
               ))}
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 overflow-hidden">
               {/* Left: Board + Eval */}
-              <div className="lg:col-span-5 space-y-3">
-                <div className="surface p-3">
-                  <div className="flex gap-3">
-                    <div className="flex flex-col items-center gap-1">
+              <div className="lg:col-span-5 space-y-3 min-w-0">
+                <div className="surface p-3 overflow-hidden">
+                  <div className="flex gap-3 min-w-0">
+                    <div className="flex flex-col items-center gap-1 shrink-0">
                       <span className="mono text-[10px]" style={{ color: 'var(--text-muted)' }}>{evalSide}</span>
                       <div className="w-5 h-64 md:h-80 rounded overflow-hidden relative" style={{ background: 'var(--bg-subtle)' }}>
                         <div className="absolute bottom-0 left-0 right-0 rounded transition-all duration-300" style={{
@@ -194,7 +194,7 @@ export default function AnalysePage() {
                         {evalDisplay}
                       </span>
                     </div>
-                    <div className="flex-1 min-w-0">
+                    <div className="flex-1 min-w-0 overflow-hidden">
                       <ChessBoard pgn={pgn} currentMoveIndex={currentMoveIndex} orientation={flipped ? 'black' : 'white'} whiteName={gameInfo?.white} blackName={gameInfo?.black} />
                     </div>
                   </div>
@@ -226,7 +226,7 @@ export default function AnalysePage() {
                         <span className={`badge-${curMove.classification}`}>{curMove.classification}</span>
                       </div>
                       <span className="mono text-xs" style={{ color: 'var(--text-muted)' }}>
-                        {curMove.evalBefore > 0 ? '+' : ''}{(curMove.evalBefore / 100).toFixed(2)} → {curMove.evalAfter > 0 ? '+' : ''}{(curMove.evalAfter / 100).toFixed(2)}
+                        {evalDisplay}
                       </span>
                     </div>
                     {curMove.bestMove && (

@@ -3,7 +3,14 @@ import { AnalyzedMove, MoveClassification } from '@/types';
 
 interface Props { moves: AnalyzedMove[]; currentMoveIndex: number; onMoveClick: (i: number) => void; }
 
-const sy: Record<MoveClassification, string> = { best: '!!', excellent: '!', good: '', inaccuracy: '?!', mistake: '?', blunder: '??' };
+const icons: Record<MoveClassification, { icon: string; color: string }> = {
+  best: { icon: '!!', color: '#22c55e' },
+  excellent: { icon: '!', color: '#4ade80' },
+  good: { icon: '', color: '' },
+  inaccuracy: { icon: '?', color: '#facc15' },
+  mistake: { icon: '?!', color: '#f97316' },
+  blunder: { icon: '??', color: '#ef4444' },
+};
 
 export default function MoveList({ moves, currentMoveIndex, onMoveClick }: Props) {
   return (
@@ -19,7 +26,16 @@ export default function MoveList({ moves, currentMoveIndex, onMoveClick }: Props
                 color: currentMoveIndex === idx * 2 ? 'var(--gold)' : 'var(--text-secondary)',
                 border: currentMoveIndex === idx * 2 ? '1px solid rgba(232,197,71,0.2)' : '1px solid transparent',
               }}>
-              {move.white.san}{sy[move.white.classification] && <span className={`ml-0.5 badge-${move.white.classification}`}>{sy[move.white.classification]}</span>}
+              {move.white.san}
+              {move.white.classification !== 'best' && move.white.classification !== 'excellent' && move.white.classification !== 'good' && (
+                <span className="ml-0.5 text-[9px] font-bold" style={{ color: icons[move.white.classification]?.color }}>{icons[move.white.classification]?.icon}</span>
+              )}
+              {move.white.classification === 'best' && (
+                <span className="ml-0.5 text-[9px] font-bold" style={{ color: '#22c55e' }}>!!</span>
+              )}
+              {move.white.classification === 'excellent' && (
+                <span className="ml-0.5 text-[9px] font-bold" style={{ color: '#4ade80' }}>!</span>
+              )}
             </button>
           )}
           {move.black && (
@@ -30,7 +46,16 @@ export default function MoveList({ moves, currentMoveIndex, onMoveClick }: Props
                 color: currentMoveIndex === idx * 2 + 1 ? 'var(--gold)' : 'var(--text-secondary)',
                 border: currentMoveIndex === idx * 2 + 1 ? '1px solid rgba(232,197,71,0.2)' : '1px solid transparent',
               }}>
-              {move.black.san}{sy[move.black.classification] && <span className={`ml-0.5 badge-${move.black.classification}`}>{sy[move.black.classification]}</span>}
+              {move.black.san}
+              {move.black.classification !== 'best' && move.black.classification !== 'excellent' && move.black.classification !== 'good' && (
+                <span className="ml-0.5 text-[9px] font-bold" style={{ color: icons[move.black.classification]?.color }}>{icons[move.black.classification]?.icon}</span>
+              )}
+              {move.black.classification === 'best' && (
+                <span className="ml-0.5 text-[9px] font-bold" style={{ color: '#22c55e' }}>!!</span>
+              )}
+              {move.black.classification === 'excellent' && (
+                <span className="ml-0.5 text-[9px] font-bold" style={{ color: '#4ade80' }}>!</span>
+              )}
             </button>
           )}
         </div>
